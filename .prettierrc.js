@@ -3,6 +3,7 @@ module.exports = {
   bracketSameLine: false,
   bracketSpacing: true,
   embeddedLanguageFormatting: `auto`,
+  endOfLine: `lf`,
   insertPragma: false,
   printWidth: 80,
   proseWrap: `preserve`,
