@@ -5,7 +5,7 @@
     "esModuleInterop": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "module": "node16",
     "moduleDetection": "force",
     "moduleResolution": "node16",
