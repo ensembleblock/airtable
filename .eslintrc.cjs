@@ -2,13 +2,14 @@ module.exports = {
   extends: [
     `eslint:recommended`,
     `airbnb-base`,
+    `plugin:typescript-sort-keys/recommended`,
     `@percuss.io/eslint-config-ericcarraway`,
   ],
   parser: `@typescript-eslint/parser`,
   parserOptions: {
     ecmaVersion: 2018,
   },
-  plugins: [`@typescript-eslint/eslint-plugin`],
+  plugins: [`@typescript-eslint/eslint-plugin`, `typescript-sort-keys`],
   rules: {
     '@typescript-eslint/array-type': `error`,
     '@typescript-eslint/ban-types': `error`,
