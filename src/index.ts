@@ -15,13 +15,20 @@ export type AirtableClientOpts = {
   baseUrl?: string;
 };
 
-export type Fields = Record<
+export type AirtableResponse = {
+  data: unknown;
+  ok: boolean;
+  status: number;
+  statusText: string;
+};
+
+export type FieldsObj = Record<
   string,
   boolean | Date | null | number | string | undefined
 >;
 
 export type CreateRecordOpts = {
-  fields: Fields;
+  fields: FieldsObj;
   tableIdOrName: string;
 };
 
@@ -32,8 +39,8 @@ export type GetRecordOpts = {
   tableIdOrName: string;
 };
 
-export type UpdatedRecordOpts = {
-  fields: Fields;
+export type UpdateRecordOpts = {
+  fields: FieldsObj;
 
   /**
    * A PATCH request (the default) will only update the fields you specify,
@@ -95,7 +102,10 @@ export class AirtableClient {
    * Create a record.
    * @see https://airtable.com/developers/web/api/create-records
    */
-  public async createRecord({ fields, tableIdOrName }: CreateRecordOpts) {
+  public async createRecord({
+    fields,
+    tableIdOrName,
+  }: CreateRecordOpts): Promise<AirtableResponse> {
     if (!fields || typeof fields !== `object` || Array.isArray(fields)) {
       throw new TypeError(
         `Airtable createRecord expected 'fields' to be a plain object`,
@@ -127,7 +137,10 @@ export class AirtableClient {
    * Any "empty" fields (e.g. "", [], or false) in the record will not be returned.
    * @see https://airtable.com/developers/web/api/get-record
    */
-  public async getRecord({ recordId, tableIdOrName }: GetRecordOpts) {
+  public async getRecord({
+    recordId,
+    tableIdOrName,
+  }: GetRecordOpts): Promise<AirtableResponse> {
     if (
       typeof recordId !== `string` ||
       recordId.length < 10 ||
@@ -165,7 +178,7 @@ export class AirtableClient {
     method = `PATCH`,
     recordId,
     tableIdOrName,
-  }: UpdatedRecordOpts) {
+  }: UpdateRecordOpts): Promise<AirtableResponse> {
     if (!fields || typeof fields !== `object` || Array.isArray(fields)) {
       throw new TypeError(
         `Airtable updateRecord expected 'fields' to be a plain object`,
