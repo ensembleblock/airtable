@@ -4,7 +4,6 @@ module.exports = {
     `airbnb-base`,
     `@percuss.io/eslint-config-ericcarraway`,
   ],
-  ignores: [`dist/`],
   parser: `@typescript-eslint/parser`,
   parserOptions: {
     ecmaVersion: 2018,
