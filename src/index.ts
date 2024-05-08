@@ -6,6 +6,7 @@ export type AirtableClientOpts = {
   baseId: string;
 
   /**
+   * Optionally set the base URL (without a trailing slash).
    * Defaults to "https://api.airtable.com/v0".
    */
   baseUrl?: string;
@@ -52,6 +53,9 @@ export type UpdateRecordOpts = {
   tableIdOrName: string;
 };
 
+/**
+ * @see https://github.com/ensembleblock/airtable
+ */
 export class AirtableClient {
   private baseId: string | null = null;
 
@@ -83,7 +87,13 @@ export class AirtableClient {
 
     this.baseId = baseId;
 
-    if (baseUrl && typeof baseUrl === `string`) {
+    if (baseUrl) {
+      if (typeof baseUrl !== `string` || baseUrl.endsWith(`/`)) {
+        throw new TypeError(
+          `AirtableClient expected 'baseUrl' to be a string without a trailing slash`,
+        );
+      }
+
       this.baseUrl = baseUrl;
     }
   }
