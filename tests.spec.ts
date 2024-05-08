@@ -13,6 +13,11 @@ const baseId = `app_mock_123456789`;
 const recordId = `rec_mock_123456789`;
 const tableIdOrName = `table_mock`;
 
+const expectedHeaders = new Headers({
+  Authorization: `Bearer pat_mock_123456789`,
+  'Content-Type': `application/json`,
+});
+
 const getClient = () => new AirtableClient({ apiKey, baseId });
 
 const parseBody = (body) =>
@@ -32,16 +37,17 @@ describe(`AirtableClient`, () => {
       tableIdOrName,
     });
 
-    expect(fetchMock.requests().length).toEqual(1);
+    expect(res.data).toStrictEqual({ createRecordResponse: true });
+    expect(fetchMock.requests().length).toBe(1);
 
-    const { body, method, url } = fetchMock.requests()[0];
+    const { body, headers, method, url } = fetchMock.requests()[0];
 
-    expect(method).toEqual(`POST`);
-    expect(url).toEqual(
+    expect(parseBody(body)).toStrictEqual({ fields: { foo: `bar` } });
+    expect(headers).toStrictEqual(expectedHeaders);
+    expect(method).toBe(`POST`);
+    expect(url).toBe(
       `https://api.airtable.com/v0/app_mock_123456789/table_mock`,
     );
-    expect(parseBody(body)).toEqual({ fields: { foo: `bar` } });
-    expect(res.data).toEqual({ createRecordResponse: true });
   });
 
   it(`getRecord`, async () => {
@@ -50,16 +56,17 @@ describe(`AirtableClient`, () => {
     const client: AirtableClient = getClient();
     const res = await client.getRecord({ recordId, tableIdOrName });
 
-    expect(fetchMock.requests().length).toEqual(1);
+    expect(res.data).toStrictEqual({ getRecordResponse: true });
+    expect(fetchMock.requests().length).toBe(1);
 
-    const { body, method, url } = fetchMock.requests()[0];
+    const { body, headers, method, url } = fetchMock.requests()[0];
 
-    expect(method).toEqual(`GET`);
-    expect(url).toEqual(
+    expect(parseBody(body)).toBe(null);
+    expect(headers).toStrictEqual(expectedHeaders);
+    expect(method).toBe(`GET`);
+    expect(url).toBe(
       `https://api.airtable.com/v0/app_mock_123456789/table_mock/rec_mock_123456789`,
     );
-    expect(parseBody(body)).toEqual(null);
-    expect(res.data).toEqual({ getRecordResponse: true });
   });
 
   it(`updateRecord`, async () => {
@@ -72,15 +79,16 @@ describe(`AirtableClient`, () => {
       tableIdOrName,
     });
 
-    expect(fetchMock.requests().length).toEqual(1);
+    expect(res.data).toStrictEqual({ updateRecordResponse: true });
+    expect(fetchMock.requests().length).toBe(1);
 
-    const { body, method, url } = fetchMock.requests()[0];
+    const { body, headers, method, url } = fetchMock.requests()[0];
 
-    expect(method).toEqual(`PATCH`);
-    expect(url).toEqual(
+    expect(parseBody(body)).toStrictEqual({ fields: { foo: `bar` } });
+    expect(headers).toStrictEqual(expectedHeaders);
+    expect(method).toBe(`PATCH`);
+    expect(url).toBe(
       `https://api.airtable.com/v0/app_mock_123456789/table_mock/rec_mock_123456789`,
     );
-    expect(parseBody(body)).toEqual({ fields: { foo: `bar` } });
-    expect(res.data).toEqual({ updateRecordResponse: true });
   });
 });
