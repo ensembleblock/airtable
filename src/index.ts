@@ -1,5 +1,3 @@
-/* eslint no-underscore-dangle: ["error", { "allow": ["_fetch"] }] */
-
 export type AirtableClientOpts = {
   /** A string of at least 10 characters. */
   apiKey: string;

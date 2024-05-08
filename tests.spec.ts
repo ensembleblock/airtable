@@ -8,11 +8,11 @@ const fetchMock = createFetchMock(vi);
 // Set `globalThis.fetch` to our mocked version.
 fetchMock.enableMocks();
 
-const getClient = () =>
-  new AirtableClient({
-    apiKey: `pat_mock_123456789`,
-    baseId: `app_mock_123456789`,
-  });
+const apiKey = `pat_mock_123456789`;
+const baseId = `app_mock_123456789`;
+const tableIdOrName = `table_mock`;
+
+const getClient = () => new AirtableClient({ apiKey, baseId });
 
 const parseBody = (body) =>
   body ? JSON.parse(Buffer.from(body).toString()) : null;
@@ -25,10 +25,10 @@ describe(`AirtableClient`, () => {
   it(`createRecord`, async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ createRecordResponse: true }));
 
-    const client = getClient();
+    const client: AirtableClient = getClient();
     const res = await client.createRecord({
       fields: { foo: `bar` },
-      tableIdOrName: `table_mock`,
+      tableIdOrName,
     });
 
     expect(fetchMock.requests().length).toEqual(1);
@@ -41,5 +41,26 @@ describe(`AirtableClient`, () => {
     );
     expect(parseBody(body)).toEqual({ fields: { foo: `bar` } });
     expect(res.data).toEqual({ createRecordResponse: true });
+  });
+
+  it(`getRecord`, async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ getRecordResponse: true }));
+
+    const client: AirtableClient = getClient();
+    const res = await client.getRecord({
+      recordId: `rec_mock_123456789`,
+      tableIdOrName,
+    });
+
+    expect(fetchMock.requests().length).toEqual(1);
+
+    const { body, method, url } = fetchMock.requests()[0];
+
+    expect(method).toEqual(`GET`);
+    expect(url).toEqual(
+      `https://api.airtable.com/v0/app_mock_123456789/table_mock/rec_mock_123456789`,
+    );
+    expect(parseBody(body)).toEqual(null);
+    expect(res.data).toEqual({ getRecordResponse: true });
   });
 });
