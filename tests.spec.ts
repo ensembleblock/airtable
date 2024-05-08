@@ -3,10 +3,10 @@ import createFetchMock from 'vitest-fetch-mock';
 
 import { AirtableClient } from './dist';
 
-const fetchMocker = createFetchMock(vi);
+const fetchMock = createFetchMock(vi);
 
-// Sets `globalThis.fetch` & `globalThis.fetchMock` to our mocked version.
-fetchMocker.enableMocks();
+// Set `globalThis.fetch` to our mocked version.
+fetchMock.enableMocks();
 
 const getClient = () =>
   new AirtableClient({
@@ -14,38 +14,32 @@ const getClient = () =>
     baseId: `app_mock_123456789`,
   });
 
+const parseBody = (body) =>
+  body ? JSON.parse(Buffer.from(body).toString()) : null;
+
 describe(`AirtableClient`, () => {
   beforeEach(() => {
-    fetchMocker.resetMocks();
+    fetchMock.resetMocks();
   });
 
   it(`createRecord`, async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ createRecordResponse: true }));
+
     const client = getClient();
-
-    fetchMocker.mockResponseOnce(JSON.stringify({ response: true }));
-
     const res = await client.createRecord({
       fields: { foo: `bar` },
       tableIdOrName: `table_mock`,
     });
 
-    expect(res.data).toEqual({ response: true });
+    expect(fetchMock.requests().length).toEqual(1);
 
-    expect(fetchMocker.requests().length).toEqual(1);
+    const { body, method, url } = fetchMock.requests()[0];
 
-    const request = fetchMocker.requests()[0];
-
-    expect(request.method).toEqual(`POST`);
-
-    expect(request.url).toEqual(
+    expect(method).toEqual(`POST`);
+    expect(url).toEqual(
       `https://api.airtable.com/v0/app_mock_123456789/table_mock`,
     );
-
-    const requestBody = request.body
-      ? // @ts-expect-error
-        JSON.parse(Buffer.from(request.body).toString())
-      : null;
-
-    expect(requestBody).toEqual({ fields: { foo: `bar` } });
+    expect(parseBody(body)).toEqual({ fields: { foo: `bar` } });
+    expect(res.data).toEqual({ createRecordResponse: true });
   });
 });
