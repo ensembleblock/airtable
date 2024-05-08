@@ -29,7 +29,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.dist.json",
+    "build": "tsc",
     "clean": "rimraf dist node_modules",
     "clean:build": "rimraf dist",
     "dev": "tsc --watch",
