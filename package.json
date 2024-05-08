@@ -38,11 +38,12 @@
     "prepublishOnly": "npm run test",
     "pretest": "npm run build",
     "release": "np",
-    "test": "npm run lint && npm run typecheck",
+    "test": "npm run lint && npm run typecheck && vitest",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@percuss.io/eslint-config-ericcarraway": "^3.0.0",
+    "@types/node": "^20.12.11",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.0",
@@ -55,6 +56,7 @@
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
     "typescript": "~5.3",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "vitest-fetch-mock": "^0.2.2"
   }
 }

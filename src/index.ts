@@ -1,8 +1,4 @@
-/* eslint no-underscore-dangle: ["error", { "allow": ["_fetch"] }] */
-
 export type AirtableClientOpts = {
-  _fetch?: typeof fetch;
-
   /** A string of at least 10 characters. */
   apiKey: string;
 
@@ -57,15 +53,13 @@ export type UpdateRecordOpts = {
 };
 
 export class AirtableClient {
-  private _fetch: typeof fetch = fetch;
-
   private baseId: string | null = null;
 
   private baseUrl: string = `https://api.airtable.com/v0`;
 
   private headers: Record<string, string> = {};
 
-  constructor({ _fetch, apiKey, baseId, baseUrl }: AirtableClientOpts) {
+  constructor({ apiKey, baseId, baseUrl }: AirtableClientOpts) {
     if (typeof apiKey !== `string` || apiKey.length < 10) {
       throw new TypeError(
         `AirtableClient expected 'apiKey' to be string of at least 10 characters`,
@@ -92,10 +86,6 @@ export class AirtableClient {
     if (baseUrl && typeof baseUrl === `string`) {
       this.baseUrl = baseUrl;
     }
-
-    if (typeof _fetch === `function`) {
-      this._fetch = _fetch;
-    }
   }
 
   /**
@@ -121,7 +111,7 @@ export class AirtableClient {
     const createRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}`;
     const body = JSON.stringify({ fields });
 
-    const res: Response = await this._fetch(createRecordUrl, {
+    const res: Response = await fetch(createRecordUrl, {
       body,
       headers: this.headers,
       method: `POST`,
@@ -159,7 +149,7 @@ export class AirtableClient {
 
     const getRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
 
-    const res = await this._fetch(getRecordUrl, {
+    const res = await fetch(getRecordUrl, {
       headers: this.headers,
       method: `GET`,
     });
@@ -213,7 +203,7 @@ export class AirtableClient {
     const updateRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
     const body = JSON.stringify({ fields });
 
-    const res = await this._fetch(updateRecordUrl, {
+    const res = await fetch(updateRecordUrl, {
       body,
       headers: this.headers,
       method: method.toUpperCase(),
