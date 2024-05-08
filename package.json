@@ -25,6 +25,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc --project tsconfig.dist.json",
     "clean": "rimraf dist node_modules",
