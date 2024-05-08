@@ -5,6 +5,14 @@ module.exports = {
     `plugin:typescript-sort-keys/recommended`,
     `@percuss.io/eslint-config-ericcarraway`,
   ],
+  overrides: [
+    {
+      files: [`tests.spec.ts`],
+      rules: {
+        'import/no-extraneous-dependencies': `off`,
+      },
+    },
+  ],
   parser: `@typescript-eslint/parser`,
   parserOptions: {
     ecmaVersion: 2018,
