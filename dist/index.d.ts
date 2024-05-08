@@ -45,21 +45,55 @@ export declare class AirtableClient {
     private baseId;
     private baseUrl;
     private headers;
+    /**
+     * Constructs an instance of the AirtableClient.
+     *
+     * @param {Object} param0 - Configuration object.
+     * @param {string} param0.apiKey - Airtable API key for authentication.
+     * @param {string} param0.baseId - The unique identifier for the base (begins with 'app').
+     * @param {string} [param0.baseUrl] - An optional API base URL (without a trailing slash).
+     * Defaults to the standard Airtable API URL.
+     */
     constructor({ apiKey, baseId, baseUrl }: AirtableClientOpts);
     /**
      * Create a record.
      * @see https://airtable.com/developers/web/api/create-records
+     *
+     * @param {Object} param0 - Configuration for the record creation.
+     * @param {Object} param0.fields - Fields to include in the new record (key/value pairs).
+     * @param {string} param0.tableIdOrName - Table ID or name where the record will be created.
+     *
+     * @returns {Promise<Object>} A promise that resolves with the result of the API call.
      */
     createRecord({ fields, tableIdOrName, }: CreateRecordOpts): Promise<AirtableResponse>;
     /**
      * Retrieve a single record using an Airtable `recordId`.
      * Any "empty" fields (e.g. "", [], or false) in the record will not be returned.
      * @see https://airtable.com/developers/web/api/get-record
+     *
+     * @param {Object} param0 - Configuration for retrieving the record.
+     * @param {string} param0.recordId - The unique identifier of the record to retrieve
+     * (begins with 'rec').
+     * @param {string} param0.tableIdOrName - Table ID or name from which to retrieve the record.
+     *
+     * @returns {Promise<Object>} A promise that resolves with the result of the GET request.
      */
     getRecord({ recordId, tableIdOrName, }: GetRecordOpts): Promise<AirtableResponse>;
     /**
      * Updates a single record.
      * @see https://airtable.com/developers/web/api/update-record
+     *
+     * @param {Object} param0 - Configuration for updating the record.
+     * @param {Object} param0.fields - New values for the record fields (key/value pairs).
+     * @param {string} [param0.method='PATCH'] - The HTTP method to use for the update
+     * ('PATCH' or 'PUT'). Defaults to 'PATCH'. 'PATCH' will only update the fields you specify,
+     * leaving the rest as they were. 'PUT' will perform a destructive update
+     * and clear all unspecified cell values.
+     * @param {string} param0.recordId - The unique identifier of the record to update
+     * (begins with 'rec').
+     * @param {string} param0.tableIdOrName - Table ID or name in which the record resides.
+     *
+     * @returns {Promise<Object>} A promise that resolves with the result of the update operation.
      */
     updateRecord({ fields, method, recordId, tableIdOrName, }: UpdateRecordOpts): Promise<AirtableResponse>;
 }
