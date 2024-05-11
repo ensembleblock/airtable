@@ -45,14 +45,17 @@ export class AirtableClient {
      * @see https://airtable.com/developers/web/api/rate-limits
      */
     async throttleIfNeeded() {
-        const millisSinceLastReq = this.lastRequestAt
-            ? Date.now() - this.lastRequestAt
-            : null;
-        if (millisSinceLastReq &&
-            millisSinceLastReq < this.minMillisBetweenRequests) {
-            const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
-            await sleep(throttleMillis);
+        if (!this.lastRequestAt) {
+            // This is the first request.  No throttling is needed.
+            return;
         }
+        const millisSinceLastReq = Date.now() - this.lastRequestAt;
+        if (millisSinceLastReq > this.minMillisBetweenRequests) {
+            // Enough time has elapsed since the last request.  No throttling is needed.
+            return;
+        }
+        const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
+        await sleep(throttleMillis);
     }
     setLastRequestAt() {
         this.lastRequestAt = Date.now();
