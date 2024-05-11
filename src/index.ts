@@ -125,7 +125,7 @@ export class AirtableClient {
 
     if (
       millisSinceLastReq &&
-      millisSinceLastReq > this.minMillisBetweenRequests
+      millisSinceLastReq < this.minMillisBetweenRequests
     ) {
       const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
 

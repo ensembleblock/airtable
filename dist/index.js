@@ -49,7 +49,7 @@ export class AirtableClient {
             ? Date.now() - this.lastRequestAt
             : null;
         if (millisSinceLastReq &&
-            millisSinceLastReq > this.minMillisBetweenRequests) {
+            millisSinceLastReq < this.minMillisBetweenRequests) {
             const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
             await sleep(throttleMillis);
         }
