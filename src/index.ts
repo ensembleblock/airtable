@@ -29,6 +29,41 @@ export type CreateRecordOpts = {
   tableIdOrName: string;
 };
 
+export type FindManyOpts = {
+  /**
+   * If you don't need every field, you can use this parameter
+   * to reduce the amount of data transferred.
+   */
+  fields?: string[];
+
+  /**
+   * @see https://support.airtable.com/docs/formula-field-reference
+   */
+  filterByFormula?: string;
+
+  /**
+   * When true, we'll attach the Airtable record ID to each record as `_airtableId`.
+   * Otherwise, each record will only include its fields.
+   */
+  includeAirtableId?: boolean;
+
+  /**
+   * The number of records to return in each paginated request.
+   * Can be used as an optimization in "find one" scenarios.
+   * Defaults to 100.  The maximum is 100.
+   */
+  maxRecords?: number | null;
+
+  /**
+   * Instructs Airtable to limit the records returned to those that
+   * have been modified since the specified number of hours ago.
+   * Cannot be used in combination with `filterByFormula`.
+   */
+  modifiedSinceHours?: number | null;
+
+  tableIdOrName: string;
+};
+
 export type GetRecordOpts = {
   /** A string of at least 10 characters beginning with "rec". */
   recordId: string;
