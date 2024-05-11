@@ -30,8 +30,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf dist node_modules",
-    "clean:build": "rimraf dist",
+    "clean": "rm -rf dist node_modules",
+    "clean:build": "rm -rf dist",
     "dev": "tsc --watch",
     "fix": "eslint --fix --quiet . ; prettier --write --log-level=silent .",
     "format": "prettier --check \"**/*.{js,ts,tsx}\"",
@@ -58,7 +58,6 @@
     "eslint-plugin-typescript-sort-keys": "^3.2.0",
     "np": "^10.0.5",
     "prettier": "^3.2.5",
-    "rimraf": "^5.0.5",
     "typescript": "~5.3",
     "vitest": "^1.6.0",
     "vitest-fetch-mock": "^0.2.2"

@@ -45,6 +45,10 @@ export declare class AirtableClient {
     private baseId;
     private baseUrl;
     private headers;
+    /** Timestamp of the last request (epoch millis). */
+    private lastRequestAt;
+    /** The Airtable API is limited to 5 requests per second per base. */
+    private minMillisBetweenRequests;
     /**
      * Constructs an instance of the AirtableClient.
      *
@@ -55,6 +59,13 @@ export declare class AirtableClient {
      * Defaults to the standard Airtable API URL.
      */
     constructor({ apiKey, baseId, baseUrl }: AirtableClientOpts);
+    /**
+     * Call before making an Airtable API request.
+     * This method ensures that we don't make more than 5 requests per second.
+     * @see https://airtable.com/developers/web/api/rate-limits
+     */
+    private throttleIfNeeded;
+    private setLastRequestAt;
     /**
      * Create a record.
      * @see https://airtable.com/developers/web/api/create-records

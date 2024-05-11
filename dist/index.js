@@ -5,6 +5,10 @@ export class AirtableClient {
     baseId = null;
     baseUrl = `https://api.airtable.com/v0`;
     headers = {};
+    /** Timestamp of the last request (epoch millis). */
+    lastRequestAt = null;
+    /** The Airtable API is limited to 5 requests per second per base. */
+    minMillisBetweenRequests = 200;
     /**
      * Constructs an instance of the AirtableClient.
      *
@@ -36,6 +40,24 @@ export class AirtableClient {
         }
     }
     /**
+     * Call before making an Airtable API request.
+     * This method ensures that we don't make more than 5 requests per second.
+     * @see https://airtable.com/developers/web/api/rate-limits
+     */
+    async throttleIfNeeded() {
+        const millisSinceLastReq = this.lastRequestAt
+            ? Date.now() - this.lastRequestAt
+            : null;
+        if (millisSinceLastReq &&
+            millisSinceLastReq > this.minMillisBetweenRequests) {
+            const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
+            await sleep(throttleMillis);
+        }
+    }
+    setLastRequestAt() {
+        this.lastRequestAt = Date.now();
+    }
+    /**
      * Create a record.
      * @see https://airtable.com/developers/web/api/create-records
      *
@@ -54,6 +76,8 @@ export class AirtableClient {
         }
         const createRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}`;
         const body = JSON.stringify({ fields });
+        await this.throttleIfNeeded();
+        this.setLastRequestAt();
         const res = await fetch(createRecordUrl, {
             body,
             headers: this.headers,
@@ -84,6 +108,8 @@ export class AirtableClient {
             throw new TypeError(`Airtable getRecord expected 'tableIdOrName' to be a non-empty string`);
         }
         const getRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
+        await this.throttleIfNeeded();
+        this.setLastRequestAt();
         const res = await fetch(getRecordUrl, {
             headers: this.headers,
             method: `GET`,
@@ -125,6 +151,8 @@ export class AirtableClient {
         }
         const updateRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
         const body = JSON.stringify({ fields });
+        await this.throttleIfNeeded();
+        this.setLastRequestAt();
         const res = await fetch(updateRecordUrl, {
             body,
             headers: this.headers,
@@ -133,4 +161,13 @@ export class AirtableClient {
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
     }
+}
+/**
+ * Sleep for the specified number of milliseconds.
+ * We use this to throttle our API requests.
+ */
+function sleep(millis) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, millis);
+    });
 }
