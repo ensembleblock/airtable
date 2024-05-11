@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import createFetchMock from 'vitest-fetch-mock';
 
+import type { FindManyOpts } from './dist';
 import { AirtableClient } from './dist';
 
 const fetchMock = createFetchMock(vi);
@@ -47,6 +48,39 @@ describe(`AirtableClient`, () => {
     expect(method).toBe(`POST`);
     expect(url).toBe(
       `https://api.airtable.com/v0/app_mock_123456789/table_mock`,
+    );
+  });
+
+  it(`findMany with no optional options`, async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        records: [
+          {
+            fields: { foo: `bar` },
+            id: `rec_mock_123456789`,
+          },
+        ],
+      }),
+    );
+
+    const client: AirtableClient = getClient();
+
+    const opts: FindManyOpts = { tableIdOrName };
+    const res = await client.findMany(opts);
+
+    expect(res).toStrictEqual([{ foo: `bar` }]);
+    expect(fetchMock.requests().length).toBe(1);
+
+    const { body, headers, method, url } = fetchMock.requests()[0];
+
+    // Since we didn't pass any optional options,
+    // the POST body should have been an empty object.
+    expect(parseBody(body)).toStrictEqual({});
+
+    expect(headers).toStrictEqual(expectedHeaders);
+    expect(method).toBe(`POST`);
+    expect(url).toBe(
+      `https://api.airtable.com/v0/app_mock_123456789/table_mock/listRecords`,
     );
   });
 
