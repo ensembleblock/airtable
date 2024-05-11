@@ -9,15 +9,50 @@ export type AirtableClientOpts = {
      */
     baseUrl?: string;
 };
+export type FieldsObj = Record<string, boolean | Date | null | number | Record<string, string> | string | string[] | undefined>;
+export type AirtableRecord = {
+    /** A date timestamp in the ISO format. */
+    createdTime: string;
+    fields: FieldsObj;
+    /** Airtable record ID (begins with 'rec'). */
+    id: string;
+};
 export type AirtableResponse = {
-    data: unknown;
+    data: AirtableRecord;
     ok: boolean;
     status: number;
     statusText: string;
 };
-export type FieldsObj = Record<string, boolean | Date | null | number | string | undefined>;
 export type CreateRecordOpts = {
     fields: FieldsObj;
+    tableIdOrName: string;
+};
+export type FindManyOpts = {
+    /**
+     * If you don't need every field, you can use this parameter
+     * to reduce the amount of data transferred.
+     */
+    fields?: string[];
+    /**
+     * @see https://support.airtable.com/docs/formula-field-reference
+     */
+    filterByFormula?: string;
+    /**
+     * When true, we'll attach the Airtable record ID to each record as `_airtableId`.
+     * Otherwise, each record will only include its fields.
+     */
+    includeAirtableId?: boolean;
+    /**
+     * The maximum total number of records to return across all (paginated) requests.
+     * Can be used as an optimization in "find one" scenarios.
+     */
+    maxRecords?: number | null;
+    /**
+     * Instructs Airtable to limit the records returned to those that
+     * have been modified since the specified number of hours ago.
+     * Cannot be used in combination with `filterByFormula`.
+     */
+    modifiedSinceHours?: number | null;
     tableIdOrName: string;
 };
 export type GetRecordOpts = {
@@ -77,6 +112,15 @@ export declare class AirtableClient {
      * @returns {Promise<Object>} A promise that resolves with the result of the API call.
      */
     createRecord({ fields, tableIdOrName, }: CreateRecordOpts): Promise<AirtableResponse>;
+    /**
+     * Retrieve many (or all) records from a table.
+     * This method makes paginated requests as necessary.
+     * Returns an array of records.
+     * @see https://airtable.com/developers/web/api/list-records
+     */
+    findMany({ fields, filterByFormula, includeAirtableId, maxRecords, modifiedSinceHours, tableIdOrName, }: FindManyOpts): Promise<(FieldsObj | (FieldsObj & {
+        _airtableId: string;
+    }))[]>;
     /**
      * Retrieve a single record using an Airtable `recordId`.
      * Any "empty" fields (e.g. "", [], or false) in the record will not be returned.

@@ -12,20 +12,71 @@ export type AirtableClientOpts = {
   baseUrl?: string;
 };
 
+export type FieldsObj = Record<
+  string,
+  | boolean
+  | Date
+  | null
+  | number
+  | Record<string, string>
+  | string
+  | string[]
+  | undefined
+>;
+
+export type AirtableRecord = {
+  /** A date timestamp in the ISO format. */
+  createdTime: string;
+
+  fields: FieldsObj;
+
+  /** Airtable record ID (begins with 'rec'). */
+  id: string;
+};
+
 export type AirtableResponse = {
-  data: unknown;
+  data: AirtableRecord;
   ok: boolean;
   status: number;
   statusText: string;
 };
 
-export type FieldsObj = Record<
-  string,
-  boolean | Date | null | number | string | undefined
->;
-
 export type CreateRecordOpts = {
   fields: FieldsObj;
+  tableIdOrName: string;
+};
+
+export type FindManyOpts = {
+  /**
+   * If you don't need every field, you can use this parameter
+   * to reduce the amount of data transferred.
+   */
+  fields?: string[];
+
+  /**
+   * @see https://support.airtable.com/docs/formula-field-reference
+   */
+  filterByFormula?: string;
+
+  /**
+   * When true, we'll attach the Airtable record ID to each record as `_airtableId`.
+   * Otherwise, each record will only include its fields.
+   */
+  includeAirtableId?: boolean;
+
+  /**
+   * The maximum total number of records to return across all (paginated) requests.
+   * Can be used as an optimization in "find one" scenarios.
+   */
+  maxRecords?: number | null;
+
+  /**
+   * Instructs Airtable to limit the records returned to those that
+   * have been modified since the specified number of hours ago.
+   * Cannot be used in combination with `filterByFormula`.
+   */
+  modifiedSinceHours?: number | null;
+
   tableIdOrName: string;
 };
 
@@ -178,9 +229,201 @@ export class AirtableClient {
       method: `POST`,
     });
 
-    const data: unknown = await res.json();
+    const data: AirtableRecord = await res.json();
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+  }
+
+  /**
+   * Retrieve many (or all) records from a table.
+   * This method makes paginated requests as necessary.
+   * Returns an array of records.
+   * @see https://airtable.com/developers/web/api/list-records
+   */
+  public async findMany({
+    fields,
+    filterByFormula,
+    includeAirtableId,
+    maxRecords,
+    modifiedSinceHours,
+    tableIdOrName,
+  }: FindManyOpts): Promise<
+    (FieldsObj | (FieldsObj & { _airtableId: string }))[]
+  > {
+    if (fields) {
+      const fieldsArrIsValid =
+        Array.isArray(fields) &&
+        fields.length > 0 &&
+        fields.every((field) => !!field && typeof field === `string`);
+
+      if (!fieldsArrIsValid) {
+        throw new TypeError(
+          `Airtable findMany expected 'fields' to be a lengthy array of strings`,
+        );
+      }
+    }
+    // Else, `fields` wasn't provided.  We'll retrieve all fields.
+
+    if (filterByFormula && typeof filterByFormula !== `string`) {
+      throw new TypeError(
+        `Airtable findMany expected 'filterByFormula' to be a string`,
+      );
+    }
+
+    if (
+      (maxRecords && (!Number.isInteger(maxRecords) || maxRecords < 1)) ||
+      maxRecords === 0
+    ) {
+      throw new TypeError(
+        `Airtable findMany expected 'maxRecords' to be a positive integer`,
+      );
+    }
+    // Else, `maxRecords` wasn't provided.  We'll retrieve all records.
+
+    if (
+      (modifiedSinceHours &&
+        (!Number.isInteger(modifiedSinceHours) || modifiedSinceHours < 1)) ||
+      modifiedSinceHours === 0
+    ) {
+      throw new TypeError(
+        `Airtable findMany expected 'modifiedSinceHours' to be a positive integer`,
+      );
+    }
+    // Else, `modifiedSinceHours` wasn't provided or is `null`.  We'll retrieve all records.
+
+    if (filterByFormula && modifiedSinceHours) {
+      throw new Error(
+        `Airtable findMany cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
+      );
+    }
+
+    if (!tableIdOrName || typeof tableIdOrName !== `string`) {
+      throw new TypeError(
+        `Airtable findMany expected 'tableIdOrName' to be a non-empty string`,
+      );
+    }
+
+    type Payload = {
+      fields?: string[];
+      filterByFormula?: string;
+      maxRecords?: number;
+
+      /**
+       * The Airtable API may include an `offset` field in the response.
+       * To fetch the next page of records, we include the offset
+       * from the previous request in the next request.
+       */
+      offset?: string;
+    };
+
+    const basePayload: Payload = {};
+
+    if (fields) {
+      basePayload.fields = fields;
+    }
+
+    if (filterByFormula) {
+      basePayload.filterByFormula = filterByFormula;
+    } else if (modifiedSinceHours) {
+      basePayload.filterByFormula = `{lastModifiedTime}>=DATETIME_FORMAT(DATEADD(NOW(),-${modifiedSinceHours},'hours'))`;
+    }
+
+    if (maxRecords) {
+      basePayload.maxRecords = maxRecords;
+    }
+
+    const listRecordsUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/listRecords`;
+    const aggregateResponses: AirtableRecord[][] = [];
+
+    let numRequestsMade = 0;
+    let offset: string | null = null;
+
+    while (numRequestsMade === 0 || offset) {
+      if (numRequestsMade > 500) {
+        /**
+         * This safety net prevents an infinite loop of requests that might
+         * happen if `offset` is (somehow) never set back to null in the
+         * body of the `while` loop.
+         *
+         * 50,000 records per base (divided amongst all tables in that base)
+         * is the maximum number of records on all non-enterprise plans.
+         */
+        throw new Error(
+          `Airtable findMany should not make more than 500 paginated requests`,
+        );
+      }
+
+      const payload: Payload = { ...basePayload };
+
+      if (offset && typeof offset === `string`) {
+        payload.offset = offset;
+      }
+
+      const body = JSON.stringify(payload);
+
+      await this.throttleIfNeeded();
+      this.setLastRequestAt();
+
+      const res: Response = await fetch(listRecordsUrl, {
+        body,
+        headers: this.headers,
+
+        // We use a POST instead of a GET request with query parameters.
+        // It's more ergonomic than encoding query parameters,
+        // especially when using `filterByFormula`.
+        method: `POST`,
+      });
+
+      numRequestsMade += 1;
+
+      if (!res.ok) {
+        throw new Error(
+          `Airtable findMany failed with HTTP status ${res.status} ${res.statusText}`,
+        );
+      }
+
+      const data: {
+        offset?: string;
+        records: AirtableRecord[];
+      } = await res.json();
+
+      if (Array.isArray(data.records) && data.records.length > 0) {
+        aggregateResponses.push(data.records);
+      }
+
+      if (data.offset && typeof data.offset === `string`) {
+        ({ offset } = data);
+      } else {
+        // No more records to fetch.
+        offset = null;
+      }
+    }
+
+    /**
+     * Basic mapping function to extract fields from a record.
+     * Drops the outer `id` & `createdTime` fields.
+     */
+    const basicMapFn = (record: AirtableRecord): FieldsObj => record.fields;
+
+    /**
+     * Complex mapping function to include the Airtable ID as `_airtableId`
+     * along with the record's fields.
+     */
+    const complexMapFn = (
+      record: AirtableRecord,
+    ): FieldsObj & { _airtableId: string } => ({
+      _airtableId: record.id,
+      ...record.fields,
+    });
+
+    const records: (FieldsObj | (FieldsObj & { _airtableId: string }))[] =
+      aggregateResponses
+        // Flatten the array of arrays into a single array of records.
+        .flat()
+        // Determine which mapping function to use based on `includeAirtableId`.
+        .map(includeAirtableId ? complexMapFn : basicMapFn);
+
+    return records;
   }
 
   /**
@@ -220,12 +463,12 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res = await fetch(getRecordUrl, {
+    const res: Response = await fetch(getRecordUrl, {
       headers: this.headers,
       method: `GET`,
     });
 
-    const data: unknown = await res.json();
+    const data: AirtableRecord = await res.json();
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
   }
@@ -289,13 +532,13 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res = await fetch(updateRecordUrl, {
+    const res: Response = await fetch(updateRecordUrl, {
       body,
       headers: this.headers,
       method: method.toUpperCase(),
     });
 
-    const data: unknown = await res.json();
+    const data: AirtableRecord = await res.json();
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
   }
