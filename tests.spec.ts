@@ -66,9 +66,9 @@ describe(`AirtableClient`, () => {
     const client: AirtableClient = getClient();
 
     const opts: FindManyOpts = { tableIdOrName };
-    const res = await client.findMany(opts);
+    const records = await client.findMany(opts);
 
-    expect(res).toStrictEqual([{ foo: `bar` }]);
+    expect(records).toStrictEqual([{ foo: `bar` }]);
     expect(fetchMock.requests().length).toBe(1);
 
     const { body, headers, method, url } = fetchMock.requests()[0];
@@ -76,6 +76,64 @@ describe(`AirtableClient`, () => {
     // Since we didn't pass any optional options,
     // the POST body should have been an empty object.
     expect(parseBody(body)).toStrictEqual({});
+
+    expect(headers).toStrictEqual(expectedHeaders);
+    expect(method).toBe(`POST`);
+    expect(url).toBe(
+      `https://api.airtable.com/v0/app_mock_123456789/table_mock/listRecords`,
+    );
+  });
+
+  it(`findMany with options including 'modifiedSinceHours'`, async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        records: [
+          {
+            fields: { field_1: 23, field_2: `foo` },
+            id: `rec_mock123`,
+          },
+          {
+            fields: { field_1: 42, field_2: `bar` },
+            id: `rec_mock456`,
+          },
+        ],
+      }),
+    );
+
+    const client: AirtableClient = getClient();
+
+    const opts: FindManyOpts = {
+      fields: [`field_1`, `field_2`],
+      includeAirtableId: true,
+      maxRecords: 2,
+      modifiedSinceHours: 24,
+      tableIdOrName,
+    };
+
+    const records = await client.findMany(opts);
+
+    expect(records).toStrictEqual([
+      {
+        _airtableId: `rec_mock123`,
+        field_1: 23,
+        field_2: `foo`,
+      },
+      {
+        _airtableId: `rec_mock456`,
+        field_1: 42,
+        field_2: `bar`,
+      },
+    ]);
+    expect(fetchMock.requests().length).toBe(1);
+
+    const { body, headers, method, url } = fetchMock.requests()[0];
+
+    // Our expected POST body for this `listRecords` request.
+    expect(parseBody(body)).toStrictEqual({
+      fields: [`field_1`, `field_2`],
+      filterByFormula: `{lastModifiedTime}>=DATETIME_FORMAT(DATEADD(NOW(),-24,'hours'))`,
+      maxRecords: 2,
+    });
 
     expect(headers).toStrictEqual(expectedHeaders);
     expect(method).toBe(`POST`);
