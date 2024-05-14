@@ -1,7 +1,7 @@
 {
   "name": "@ensembleblock/airtable",
   "type": "module",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Airtable client powered by fetch",
   "repository": "ensembleblock/airtable",
   "license": "MIT",
