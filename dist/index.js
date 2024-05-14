@@ -353,7 +353,10 @@ export class AirtableClient {
         const foundRecord = await this.findFirst(findFirstOpts);
         if (!isPlainObj(foundRecord)) {
             const createRecordOpts = {
-                fields: $set,
+                fields: {
+                    ...$set,
+                    ...where,
+                },
                 tableIdOrName,
             };
             const createRecordRes = await this.createRecord(createRecordOpts);
@@ -369,7 +372,7 @@ export class AirtableClient {
         }
         const { _airtableId, ...existingFields } = foundRecord;
         if (!isValidRecordId(_airtableId)) {
-            throw new TypeError(`Airtable upsertRecord failed to retrieve a valid '_airtableId' from the found record`);
+            throw new Error(`Airtable upsertRecord failed to retrieve a valid '_airtableId' from the found record`);
         }
         const fieldsToUpdate = {};
         for (const [key, valueToSet] of Object.entries($set)) {
@@ -410,7 +413,7 @@ export class AirtableClient {
         const updateRecordRes = await this.updateRecord(updateRecordOpts);
         const updatedRecord = updateRecordRes.data;
         if (!isValidRecordId(updatedRecord.id)) {
-            throw new TypeError(`Airtable upsertRecord failed to retrieve a valid '_airtableId' from the updated record`);
+            throw new Error(`Airtable upsertRecord failed to retrieve a valid '_airtableId' from the updated record`);
         }
         return {
             _airtableId: updatedRecord.id,
