@@ -65,16 +65,16 @@ export class AirtableClient {
      * @see https://airtable.com/developers/web/api/create-records
      *
      * @param {Object} param0 - Configuration for the record creation.
-     * @param {Object} param0.fields - Fields to include in the new record (key/value pairs).
+     * @param {Object} param0.fields - Fields to include in the new record (key-value pairs).
      * @param {string} param0.tableIdOrName - Table ID or name where the record will be created.
      *
      * @returns {Promise<Object>} A promise that resolves with the result of the API call.
      */
     async createRecord({ fields, tableIdOrName, }) {
-        if (!fields || typeof fields !== `object` || Array.isArray(fields)) {
+        if (!isPlainObj(fields)) {
             throw new TypeError(`Airtable createRecord expected 'fields' to be a plain object`);
         }
-        if (!tableIdOrName || typeof tableIdOrName !== `string`) {
+        if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable createRecord expected 'tableIdOrName' to be a non-empty string`);
         }
         const createRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}`;
@@ -88,6 +88,49 @@ export class AirtableClient {
         });
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+    }
+    /**
+     * Returns the first record that matches the given filter object.
+     * (A plain object with exactly one key-value pair.)
+     * Returns `null` if no record is found.
+     */
+    async findFirst({ fields, filterObj, includeAirtableId, tableIdOrName, }) {
+        if (fields) {
+            const fieldsArrIsValid = Array.isArray(fields) &&
+                fields.length > 0 &&
+                fields.every((field) => !!field && typeof field === `string`);
+            if (!fieldsArrIsValid) {
+                throw new TypeError(`Airtable findFirst expected 'fields' to be a lengthy array of strings`);
+            }
+        }
+        // Else, `fields` wasn't provided.  We'll retrieve all fields.
+        // Validate `filterObj`.
+        if (!isPlainObj(filterObj)) {
+            throw new TypeError(`Airtable findFirst expected 'filterObj' to be a plain object`);
+        }
+        if (Object.keys(filterObj).length !== 1) {
+            throw new TypeError(`Airtable findFirst expected 'filterObj' to have exactly one key-value pair`);
+        }
+        if (!isNonEmptyStr(tableIdOrName)) {
+            throw new TypeError(`Airtable findFirst expected 'tableIdOrName' to be a non-empty string`);
+        }
+        const [fieldName, value] = Object.entries(filterObj)[0];
+        const opts = {
+            filterByFormula: `{${fieldName}}='${value}'`,
+            maxRecords: 1,
+            tableIdOrName,
+        };
+        if (fields) {
+            opts.fields = fields;
+        }
+        if (includeAirtableId) {
+            opts.includeAirtableId = true;
+        }
+        const records = await this.findMany(opts);
+        if (!Array.isArray(records) || records.length !== 1) {
+            return null;
+        }
+        return isPlainObj(records[0]) ? records[0] : null;
     }
     /**
      * Retrieve many (or all) records from a table.
@@ -105,9 +148,10 @@ export class AirtableClient {
             }
         }
         // Else, `fields` wasn't provided.  We'll retrieve all fields.
-        if (filterByFormula && typeof filterByFormula !== `string`) {
-            throw new TypeError(`Airtable findMany expected 'filterByFormula' to be a string`);
+        if (filterByFormula && !isNonEmptyStr(filterByFormula)) {
+            throw new TypeError(`Airtable findMany expected 'filterByFormula' to be a non-string when given`);
         }
+        // Else, `filterByFormula` wasn't provided.
         if ((maxRecords && (!Number.isInteger(maxRecords) || maxRecords < 1)) ||
             maxRecords === 0) {
             throw new TypeError(`Airtable findMany expected 'maxRecords' to be a positive integer`);
@@ -122,7 +166,7 @@ export class AirtableClient {
         if (filterByFormula && modifiedSinceHours) {
             throw new Error(`Airtable findMany cannot use both 'filterByFormula' and 'modifiedSinceHours'`);
         }
-        if (!tableIdOrName || typeof tableIdOrName !== `string`) {
+        if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable findMany expected 'tableIdOrName' to be a non-empty string`);
         }
         const basePayload = {};
@@ -223,7 +267,7 @@ export class AirtableClient {
             !recordId.startsWith(`rec`)) {
             throw new TypeError(`Airtable getRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`);
         }
-        if (!tableIdOrName || typeof tableIdOrName !== `string`) {
+        if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable getRecord expected 'tableIdOrName' to be a non-empty string`);
         }
         const getRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
@@ -241,7 +285,7 @@ export class AirtableClient {
      * @see https://airtable.com/developers/web/api/update-record
      *
      * @param {Object} param0 - Configuration for updating the record.
-     * @param {Object} param0.fields - New values for the record fields (key/value pairs).
+     * @param {Object} param0.fields - New values for the record fields (key-value pairs).
      * @param {string} [param0.method='PATCH'] - The HTTP method to use for the update
      * ('PATCH' or 'PUT'). Defaults to 'PATCH'. 'PATCH' will only update the fields you specify,
      * leaving the rest as they were. 'PUT' will perform a destructive update
@@ -253,7 +297,7 @@ export class AirtableClient {
      * @returns {Promise<Object>} A promise that resolves with the result of the update operation.
      */
     async updateRecord({ fields, method = `PATCH`, recordId, tableIdOrName, }) {
-        if (!fields || typeof fields !== `object` || Array.isArray(fields)) {
+        if (!isPlainObj(fields)) {
             throw new TypeError(`Airtable updateRecord expected 'fields' to be a plain object`);
         }
         if (typeof method !== `string` ||
@@ -265,7 +309,7 @@ export class AirtableClient {
             !recordId.startsWith(`rec`)) {
             throw new TypeError(`Airtable updateRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`);
         }
-        if (!tableIdOrName || typeof tableIdOrName !== `string`) {
+        if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable updateRecord expected 'tableIdOrName' to be a non-empty string`);
         }
         const updateRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
@@ -280,6 +324,12 @@ export class AirtableClient {
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
     }
+}
+function isNonEmptyStr(str) {
+    return typeof str === `string` && str.length > 0;
+}
+function isPlainObj(obj) {
+    return typeof obj === `object` && obj !== null && !Array.isArray(obj);
 }
 /**
  * Sleep for the specified number of milliseconds.

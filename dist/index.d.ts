@@ -27,6 +27,23 @@ export type CreateRecordOpts = {
     fields: FieldsObj;
     tableIdOrName: string;
 };
+export type FindFirstOpts = {
+    /**
+     * If you don't need every field, you can use this parameter
+     * to reduce the amount of data transferred.
+     */
+    fields?: string[];
+    /**
+     * A plain object with exactly one key-value pair.
+     */
+    filterObj: Record<string, string | number | boolean>;
+    /**
+     * When true, we'll attach the Airtable record ID to the record as `_airtableId`.
+     * Otherwise, the record will only include its fields.
+     */
+    includeAirtableId?: boolean;
+    tableIdOrName: string;
+};
 export type FindManyOpts = {
     /**
      * If you don't need every field, you can use this parameter
@@ -106,12 +123,20 @@ export declare class AirtableClient {
      * @see https://airtable.com/developers/web/api/create-records
      *
      * @param {Object} param0 - Configuration for the record creation.
-     * @param {Object} param0.fields - Fields to include in the new record (key/value pairs).
+     * @param {Object} param0.fields - Fields to include in the new record (key-value pairs).
      * @param {string} param0.tableIdOrName - Table ID or name where the record will be created.
      *
      * @returns {Promise<Object>} A promise that resolves with the result of the API call.
      */
     createRecord({ fields, tableIdOrName, }: CreateRecordOpts): Promise<AirtableResponse>;
+    /**
+     * Returns the first record that matches the given filter object.
+     * (A plain object with exactly one key-value pair.)
+     * Returns `null` if no record is found.
+     */
+    findFirst({ fields, filterObj, includeAirtableId, tableIdOrName, }: FindFirstOpts): Promise<FieldsObj | (FieldsObj & {
+        _airtableId: string;
+    }) | null>;
     /**
      * Retrieve many (or all) records from a table.
      * This method makes paginated requests as necessary.
@@ -139,7 +164,7 @@ export declare class AirtableClient {
      * @see https://airtable.com/developers/web/api/update-record
      *
      * @param {Object} param0 - Configuration for updating the record.
-     * @param {Object} param0.fields - New values for the record fields (key/value pairs).
+     * @param {Object} param0.fields - New values for the record fields (key-value pairs).
      * @param {string} [param0.method='PATCH'] - The HTTP method to use for the update
      * ('PATCH' or 'PUT'). Defaults to 'PATCH'. 'PATCH' will only update the fields you specify,
      * leaving the rest as they were. 'PUT' will perform a destructive update
