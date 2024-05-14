@@ -1,3 +1,5 @@
+/* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
+
 export type AirtableClientOpts = {
   /** A string of at least 10 characters. */
   apiKey: string;
@@ -31,7 +33,7 @@ export type AirtableRecord = {
   fields: FieldsObj;
 
   /** Airtable record ID (begins with 'rec'). */
-  id: string;
+  id: `rec${string}`;
 };
 
 export type AirtableResponse = {
@@ -61,9 +63,7 @@ export type FindFirstOpts = {
 
   tableIdOrName: string;
 
-  /**
-   * A plain object with exactly one key-value pair.
-   */
+  /** A plain object with exactly one key-value pair. */
   where: Record<string, string | number | boolean>;
 };
 
@@ -109,6 +109,7 @@ export type GetRecordOpts = {
 };
 
 export type UpdateRecordOpts = {
+  /** Updates to make. */
   fields: FieldsObj;
 
   /**
@@ -124,6 +125,24 @@ export type UpdateRecordOpts = {
 
   tableIdOrName: string;
 };
+
+export type UpsertRecordOpts = {
+  /** Updates to make. */
+  $set: FieldsObj;
+
+  tableIdOrName: string;
+
+  /** A plain object with exactly one key-value pair. */
+  where: Record<string, string | number | boolean>;
+};
+
+export const UpsertResults = {
+  RECORD_CREATED: `RECORD_CREATED`,
+  RECORD_UNCHANGED: `RECORD_UNCHANGED`,
+  RECORD_UPDATED: `RECORD_UPDATED`,
+} as const;
+
+export type UpsertResult = keyof typeof UpsertResults;
 
 /**
  * @see https://github.com/ensembleblock/airtable
@@ -266,7 +285,7 @@ export class AirtableClient {
     tableIdOrName,
     where,
   }: FindFirstOpts): Promise<
-    FieldsObj | (FieldsObj & { _airtableId: string }) | null
+    FieldsObj | (FieldsObj & { _airtableId: `rec${string}` }) | null
   > {
     if (fields) {
       const fieldsArrIsValid =
@@ -339,7 +358,7 @@ export class AirtableClient {
     modifiedSinceHours,
     tableIdOrName,
   }: FindManyOpts): Promise<
-    (FieldsObj | (FieldsObj & { _airtableId: string }))[]
+    (FieldsObj | (FieldsObj & { _airtableId: `rec${string}` }))[]
   > {
     if (fields) {
       const fieldsArrIsValid =
@@ -384,7 +403,7 @@ export class AirtableClient {
     // Else, `modifiedSinceHours` wasn't provided or is `null`.  We'll retrieve all records.
 
     if (filterByFormula && modifiedSinceHours) {
-      throw new Error(
+      throw new TypeError(
         `Airtable findMany cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
       );
     }
@@ -503,17 +522,19 @@ export class AirtableClient {
      */
     const complexMapFn = (
       record: AirtableRecord,
-    ): FieldsObj & { _airtableId: string } => ({
+    ): FieldsObj & { _airtableId: `rec${string}` } => ({
       _airtableId: record.id,
       ...record.fields,
     });
 
-    const records: (FieldsObj | (FieldsObj & { _airtableId: string }))[] =
-      aggregateResponses
-        // Flatten the array of arrays into a single array of records.
-        .flat()
-        // Determine which mapping function to use based on `includeAirtableId`.
-        .map(includeAirtableId ? complexMapFn : basicMapFn);
+    const records: (
+      | FieldsObj
+      | (FieldsObj & { _airtableId: `rec${string}` })
+    )[] = aggregateResponses
+      // Flatten the array of arrays into a single array of records.
+      .flat()
+      // Determine which mapping function to use based on `includeAirtableId`.
+      .map(includeAirtableId ? complexMapFn : basicMapFn);
 
     return records;
   }
@@ -534,11 +555,7 @@ export class AirtableClient {
     recordId,
     tableIdOrName,
   }: GetRecordOpts): Promise<AirtableResponse> {
-    if (
-      typeof recordId !== `string` ||
-      recordId.length < 10 ||
-      !recordId.startsWith(`rec`)
-    ) {
+    if (!isValidRecordId(recordId)) {
       throw new TypeError(
         `Airtable getRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`,
       );
@@ -602,11 +619,7 @@ export class AirtableClient {
       );
     }
 
-    if (
-      typeof recordId !== `string` ||
-      recordId.length < 10 ||
-      !recordId.startsWith(`rec`)
-    ) {
+    if (!isValidRecordId(recordId)) {
       throw new TypeError(
         `Airtable updateRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`,
       );
@@ -634,6 +647,152 @@ export class AirtableClient {
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
   }
+
+  /**
+   * If a record is found that matches the `where` object, the record will be updated.
+   * Otherwise, a new record will be created.
+   */
+  public async upsertRecord({
+    $set,
+    tableIdOrName,
+    where,
+  }: UpsertRecordOpts): Promise<{
+    _airtableId: `rec${string}`;
+    upsertResult: UpsertResult;
+  }> {
+    if (!isPlainObj($set)) {
+      throw new TypeError(
+        `Airtable upsertRecord expected '$set' to be a plain object`,
+      );
+    }
+
+    if (!isPlainObj(where)) {
+      throw new TypeError(
+        `Airtable upsertRecord expected 'where' to be a plain object`,
+      );
+    }
+
+    if (Object.keys(where).length !== 1) {
+      throw new TypeError(
+        `Airtable upsertRecord expected 'where' to have exactly one key-value pair`,
+      );
+    }
+
+    const fieldsToRetrieve: string[] = Object.keys($set);
+    const whereKey = Object.keys(where)[0]!;
+
+    if (fieldsToRetrieve.includes(whereKey)) {
+      throw new TypeError(
+        `Airtable upsertRecord '$set' should not include the 'where' key '${whereKey}'`,
+      );
+    }
+
+    const findFirstOpts: FindFirstOpts = {
+      fields: fieldsToRetrieve,
+      includeAirtableId: true,
+      tableIdOrName,
+      where,
+    };
+
+    const foundRecord:
+      | FieldsObj
+      | (FieldsObj & {
+          _airtableId: `rec${string}`;
+        })
+      | null = await this.findFirst(findFirstOpts);
+
+    if (!isPlainObj(foundRecord)) {
+      const createRecordOpts: CreateRecordOpts = {
+        fields: $set,
+        tableIdOrName,
+      };
+
+      const createRecordRes: AirtableResponse =
+        await this.createRecord(createRecordOpts);
+
+      const createdRecord: AirtableRecord = createRecordRes.data;
+      const _airtableId = createdRecord.id;
+
+      if (!isValidRecordId(_airtableId)) {
+        throw new TypeError(
+          `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the created record`,
+        );
+      }
+
+      return {
+        _airtableId,
+        upsertResult: UpsertResults.RECORD_CREATED,
+      };
+    }
+
+    const { _airtableId, ...existingFields } = foundRecord;
+
+    if (!isValidRecordId(_airtableId)) {
+      throw new TypeError(
+        `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the found record`,
+      );
+    }
+
+    const fieldsToUpdate: FieldsObj = {};
+
+    for (const [key, valueToSet] of Object.entries($set)) {
+      if (existingFields[key] === valueToSet) {
+        // The field is already up-to-date.
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      if (typeof existingFields[key] === `undefined`) {
+        // The Airtable API does not return any "empty" fields
+        // (e.g. "", [], or false) in the record.
+        const updateToMakeIsEmpty =
+          valueToSet === `` ||
+          valueToSet === false ||
+          valueToSet === null ||
+          valueToSet === undefined ||
+          (Array.isArray(valueToSet) && valueToSet.length === 0);
+
+        if (updateToMakeIsEmpty) {
+          // The field is empty on in the existing Airtable record
+          // and the new value is also empty.
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+      }
+
+      fieldsToUpdate[key] = valueToSet;
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      // No fields need to be updated.
+      return {
+        _airtableId,
+        upsertResult: UpsertResults.RECORD_UNCHANGED,
+      };
+    }
+
+    const updateRecordOpts: UpdateRecordOpts = {
+      fields: $set,
+      recordId: _airtableId,
+      tableIdOrName,
+    };
+
+    const updateRecordRes: AirtableResponse =
+      await this.updateRecord(updateRecordOpts);
+
+    const updatedRecord: AirtableRecord = updateRecordRes.data;
+
+    if (!isValidRecordId(updatedRecord.id)) {
+      throw new TypeError(
+        `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the updated record`,
+      );
+    }
+
+    return {
+      _airtableId: updatedRecord.id,
+      upsertResult: UpsertResults.RECORD_UPDATED,
+    };
+  }
 }
 
 function isNonEmptyStr(str: string): str is string {
@@ -642,6 +801,14 @@ function isNonEmptyStr(str: string): str is string {
 
 function isPlainObj(obj: unknown): obj is object {
   return typeof obj === `object` && obj !== null && !Array.isArray(obj);
+}
+
+function isValidRecordId(recordId: unknown): recordId is `rec${string}` {
+  return (
+    typeof recordId === `string` &&
+    recordId.length > 10 &&
+    recordId.startsWith(`rec`)
+  );
 }
 
 /**

@@ -15,7 +15,7 @@ export type AirtableRecord = {
     createdTime: string;
     fields: FieldsObj;
     /** Airtable record ID (begins with 'rec'). */
-    id: string;
+    id: `rec${string}`;
 };
 export type AirtableResponse = {
     data: AirtableRecord;
@@ -39,9 +39,7 @@ export type FindFirstOpts = {
      */
     includeAirtableId?: boolean;
     tableIdOrName: string;
-    /**
-     * A plain object with exactly one key-value pair.
-     */
+    /** A plain object with exactly one key-value pair. */
     where: Record<string, string | number | boolean>;
 };
 export type FindManyOpts = {
@@ -78,6 +76,7 @@ export type GetRecordOpts = {
     tableIdOrName: string;
 };
 export type UpdateRecordOpts = {
+    /** Updates to make. */
     fields: FieldsObj;
     /**
      * A PATCH request (the default) will only update the fields you specify,
@@ -90,6 +89,19 @@ export type UpdateRecordOpts = {
     recordId: string;
     tableIdOrName: string;
 };
+export type UpsertRecordOpts = {
+    /** Updates to make. */
+    $set: FieldsObj;
+    tableIdOrName: string;
+    /** A plain object with exactly one key-value pair. */
+    where: Record<string, string | number | boolean>;
+};
+export declare const UpsertResults: {
+    readonly RECORD_CREATED: "RECORD_CREATED";
+    readonly RECORD_UNCHANGED: "RECORD_UNCHANGED";
+    readonly RECORD_UPDATED: "RECORD_UPDATED";
+};
+export type UpsertResult = keyof typeof UpsertResults;
 /**
  * @see https://github.com/ensembleblock/airtable
  */
@@ -135,7 +147,7 @@ export declare class AirtableClient {
      * Returns `null` if no record is found.
      */
     findFirst({ fields, includeAirtableId, tableIdOrName, where, }: FindFirstOpts): Promise<FieldsObj | (FieldsObj & {
-        _airtableId: string;
+        _airtableId: `rec${string}`;
     }) | null>;
     /**
      * Retrieve many (or all) records from a table.
@@ -144,7 +156,7 @@ export declare class AirtableClient {
      * @see https://airtable.com/developers/web/api/list-records
      */
     findMany({ fields, filterByFormula, includeAirtableId, maxRecords, modifiedSinceHours, tableIdOrName, }: FindManyOpts): Promise<(FieldsObj | (FieldsObj & {
-        _airtableId: string;
+        _airtableId: `rec${string}`;
     }))[]>;
     /**
      * Retrieve a single record using an Airtable `recordId`.
@@ -176,4 +188,12 @@ export declare class AirtableClient {
      * @returns {Promise<Object>} A promise that resolves with the result of the update operation.
      */
     updateRecord({ fields, method, recordId, tableIdOrName, }: UpdateRecordOpts): Promise<AirtableResponse>;
+    /**
+     * If a record is found that matches the `where` object, the record will be updated.
+     * Otherwise, a new record will be created.
+     */
+    upsertRecord({ $set, tableIdOrName, where, }: UpsertRecordOpts): Promise<{
+        _airtableId: `rec${string}`;
+        upsertResult: UpsertResult;
+    }>;
 }
