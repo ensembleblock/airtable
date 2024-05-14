@@ -94,7 +94,7 @@ export class AirtableClient {
      * (A plain object with exactly one key-value pair.)
      * Returns `null` if no record is found.
      */
-    async findFirst({ fields, filterObj, includeAirtableId, tableIdOrName, }) {
+    async findFirst({ fields, includeAirtableId, tableIdOrName, where, }) {
         if (fields) {
             const fieldsArrIsValid = Array.isArray(fields) &&
                 fields.length > 0 &&
@@ -104,17 +104,16 @@ export class AirtableClient {
             }
         }
         // Else, `fields` wasn't provided.  We'll retrieve all fields.
-        // Validate `filterObj`.
-        if (!isPlainObj(filterObj)) {
-            throw new TypeError(`Airtable findFirst expected 'filterObj' to be a plain object`);
+        if (!isPlainObj(where)) {
+            throw new TypeError(`Airtable findFirst expected 'where' to be a plain object`);
         }
-        if (Object.keys(filterObj).length !== 1) {
-            throw new TypeError(`Airtable findFirst expected 'filterObj' to have exactly one key-value pair`);
+        if (Object.keys(where).length !== 1) {
+            throw new TypeError(`Airtable findFirst expected 'where' to have exactly one key-value pair`);
         }
         if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable findFirst expected 'tableIdOrName' to be a non-empty string`);
         }
-        const [fieldName, value] = Object.entries(filterObj)[0];
+        const [fieldName, value] = Object.entries(where)[0];
         const opts = {
             filterByFormula: `{${fieldName}}='${value}'`,
             maxRecords: 1,

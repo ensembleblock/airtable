@@ -34,15 +34,15 @@ export type FindFirstOpts = {
      */
     fields?: string[];
     /**
-     * A plain object with exactly one key-value pair.
-     */
-    filterObj: Record<string, string | number | boolean>;
-    /**
      * When true, we'll attach the Airtable record ID to the record as `_airtableId`.
      * Otherwise, the record will only include its fields.
      */
     includeAirtableId?: boolean;
     tableIdOrName: string;
+    /**
+     * A plain object with exactly one key-value pair.
+     */
+    where: Record<string, string | number | boolean>;
 };
 export type FindManyOpts = {
     /**
@@ -134,7 +134,7 @@ export declare class AirtableClient {
      * (A plain object with exactly one key-value pair.)
      * Returns `null` if no record is found.
      */
-    findFirst({ fields, filterObj, includeAirtableId, tableIdOrName, }: FindFirstOpts): Promise<FieldsObj | (FieldsObj & {
+    findFirst({ fields, includeAirtableId, tableIdOrName, where, }: FindFirstOpts): Promise<FieldsObj | (FieldsObj & {
         _airtableId: string;
     }) | null>;
     /**

@@ -54,17 +54,17 @@ export type FindFirstOpts = {
   fields?: string[];
 
   /**
-   * A plain object with exactly one key-value pair.
-   */
-  filterObj: Record<string, string | number | boolean>;
-
-  /**
    * When true, we'll attach the Airtable record ID to the record as `_airtableId`.
    * Otherwise, the record will only include its fields.
    */
   includeAirtableId?: boolean;
 
   tableIdOrName: string;
+
+  /**
+   * A plain object with exactly one key-value pair.
+   */
+  where: Record<string, string | number | boolean>;
 };
 
 export type FindManyOpts = {
@@ -262,9 +262,9 @@ export class AirtableClient {
    */
   public async findFirst({
     fields,
-    filterObj,
     includeAirtableId,
     tableIdOrName,
+    where,
   }: FindFirstOpts): Promise<
     FieldsObj | (FieldsObj & { _airtableId: string }) | null
   > {
@@ -282,16 +282,15 @@ export class AirtableClient {
     }
     // Else, `fields` wasn't provided.  We'll retrieve all fields.
 
-    // Validate `filterObj`.
-    if (!isPlainObj(filterObj)) {
+    if (!isPlainObj(where)) {
       throw new TypeError(
-        `Airtable findFirst expected 'filterObj' to be a plain object`,
+        `Airtable findFirst expected 'where' to be a plain object`,
       );
     }
 
-    if (Object.keys(filterObj).length !== 1) {
+    if (Object.keys(where).length !== 1) {
       throw new TypeError(
-        `Airtable findFirst expected 'filterObj' to have exactly one key-value pair`,
+        `Airtable findFirst expected 'where' to have exactly one key-value pair`,
       );
     }
 
@@ -301,7 +300,7 @@ export class AirtableClient {
       );
     }
 
-    const [fieldName, value] = Object.entries(filterObj)[0]!;
+    const [fieldName, value] = Object.entries(where)[0]!;
 
     const opts: FindManyOpts = {
       filterByFormula: `{${fieldName}}='${value}'`,
