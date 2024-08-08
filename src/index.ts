@@ -1,4 +1,5 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
+/* global RequestInit */
 
 export type AirtableClientOpts = {
   /** A string of at least 10 characters. */
