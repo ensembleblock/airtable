@@ -263,11 +263,14 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(createRecordUrl, {
+    const init: RequestInit = {
       body,
+      cache: `no-store`,
       headers: this.headers,
       method: `POST`,
-    });
+    };
+
+    const res: Response = await fetch(createRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -475,15 +478,18 @@ export class AirtableClient {
       await this.throttleIfNeeded();
       this.setLastRequestAt();
 
-      const res: Response = await fetch(listRecordsUrl, {
+      const init: RequestInit = {
         body,
+        cache: `no-store`,
         headers: this.headers,
 
         // We use a POST instead of a GET request with query parameters.
         // It's more ergonomic than encoding query parameters,
         // especially when using `filterByFormula`.
         method: `POST`,
-      });
+      };
+
+      const res: Response = await fetch(listRecordsUrl, init);
 
       numRequestsMade += 1;
 
@@ -572,10 +578,13 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(getRecordUrl, {
+    const init: RequestInit = {
+      cache: `no-store`,
       headers: this.headers,
       method: `GET`,
-    });
+    };
+
+    const res: Response = await fetch(getRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -637,11 +646,14 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(updateRecordUrl, {
+    const init: RequestInit = {
       body,
+      cache: `no-store`,
       headers: this.headers,
       method: method.toUpperCase(),
-    });
+    };
+
+    const res: Response = await fetch(updateRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
