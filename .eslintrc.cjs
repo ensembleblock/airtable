@@ -5,6 +5,9 @@ module.exports = {
     `plugin:typescript-sort-keys/recommended`,
     `@percuss.io/eslint-config-ericcarraway`,
   ],
+  global: {
+    RequestInit: true,
+  },
   overrides: [
     {
       files: [`tests.spec.ts`],
