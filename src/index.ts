@@ -133,7 +133,10 @@ export type UpsertRecordOpts = {
 
   tableIdOrName: string;
 
-  /** A plain object with exactly one key-value pair. */
+  /**
+   * A plain object with exactly one key-value pair.
+   * Both the key and the value should be truthy.
+   */
   where: Record<string, string | number | boolean>;
 };
 
@@ -317,16 +320,22 @@ export class AirtableClient {
       );
     }
 
+    const [whereKey, whereValue] = Object.entries(where)[0]!;
+
+    if (!whereKey || !whereValue) {
+      throw new TypeError(
+        `Airtable findFirst expected 'where' to have a truthy key and value`,
+      );
+    }
+
     if (!isNonEmptyStr(tableIdOrName)) {
       throw new TypeError(
         `Airtable findFirst expected 'tableIdOrName' to be a non-empty string`,
       );
     }
 
-    const [fieldName, value] = Object.entries(where)[0]!;
-
     const opts: FindManyOpts = {
-      filterByFormula: `{${fieldName}}='${value}'`,
+      filterByFormula: `{${whereKey}}='${whereValue}'`,
       maxRecords: 1,
       tableIdOrName,
     };
@@ -691,8 +700,15 @@ export class AirtableClient {
       );
     }
 
+    const [whereKey, whereValue] = Object.entries(where)[0]!;
+
+    if (!whereKey || !whereValue) {
+      throw new TypeError(
+        `Airtable upsertRecord expected 'where' to have a truthy key and value`,
+      );
+    }
+
     const fieldsToRetrieve: string[] = Object.keys($set);
-    const whereKey = Object.keys(where)[0]!;
 
     if (fieldsToRetrieve.includes(whereKey)) {
       throw new TypeError(

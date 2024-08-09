@@ -93,7 +93,10 @@ export type UpsertRecordOpts = {
     /** Updates to make. */
     $set: FieldsObj;
     tableIdOrName: string;
-    /** A plain object with exactly one key-value pair. */
+    /**
+     * A plain object with exactly one key-value pair.
+     * Both the key and the value should be truthy.
+     */
     where: Record<string, string | number | boolean>;
 };
 export declare const UpsertResults: {
