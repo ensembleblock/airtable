@@ -23,7 +23,8 @@
   "main": "dist/index.js",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
