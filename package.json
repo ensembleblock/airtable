@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.0.10",
   "repository": "ensembleblock/airtable",
+  "homepage": "https://github.com/ensembleblock/airtable#readme",
   "license": "MIT",
   "author": {
     "name": "Eric L. Carraway",
