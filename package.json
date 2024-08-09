@@ -34,7 +34,7 @@
     "clean:build": "rm -rf dist",
     "dev": "tsc --watch",
     "fix": "eslint --fix --quiet . ; prettier --write --log-level=silent .",
-    "format": "prettier --check \"**/*.{js,ts,tsx}\"",
+    "format": "prettier --check \"**/*.{cjs,js,md,ts}\"",
     "lint": "eslint src/*.ts",
     "prebuild": "npm run clean:build",
     "prepare": "npm run build",
@@ -46,10 +46,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@percuss.io/eslint-config-ericcarraway": "^3.0.0",
-    "@types/node": "^20.12.11",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@percuss.io/eslint-config-ericcarraway": "^4.1.0",
+    "@types/node": "^20.13.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.1",
+    "@typescript-eslint/parser": "^7.16.1",
     "eslint": "^8.57.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.29.1",
@@ -57,7 +57,7 @@
     "eslint-plugin-sort-destructure-keys": "^2.0.0",
     "eslint-plugin-typescript-sort-keys": "^3.2.0",
     "np": "^10.0.5",
-    "prettier": "^3.2.5",
+    "prettier": "^3.3.0",
     "typescript": "~5.3",
     "vitest": "^1.6.0",
     "vitest-fetch-mock": "^0.2.2"

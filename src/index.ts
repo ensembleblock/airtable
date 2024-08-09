@@ -1,4 +1,5 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
+/* global RequestInit */
 
 export type AirtableClientOpts = {
   /** A string of at least 10 characters. */
@@ -132,7 +133,10 @@ export type UpsertRecordOpts = {
 
   tableIdOrName: string;
 
-  /** A plain object with exactly one key-value pair. */
+  /**
+   * A plain object with exactly one key-value pair.
+   * Both the key and the value should be truthy.
+   */
   where: Record<string, string | number | boolean>;
 };
 
@@ -263,11 +267,14 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(createRecordUrl, {
+    const init: RequestInit = {
       body,
+      cache: `no-store`,
       headers: this.headers,
       method: `POST`,
-    });
+    };
+
+    const res: Response = await fetch(createRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -313,16 +320,22 @@ export class AirtableClient {
       );
     }
 
+    const [whereKey, whereValue] = Object.entries(where)[0]!;
+
+    if (!whereKey || !whereValue) {
+      throw new TypeError(
+        `Airtable findFirst expected 'where' to have a truthy key and value`,
+      );
+    }
+
     if (!isNonEmptyStr(tableIdOrName)) {
       throw new TypeError(
         `Airtable findFirst expected 'tableIdOrName' to be a non-empty string`,
       );
     }
 
-    const [fieldName, value] = Object.entries(where)[0]!;
-
     const opts: FindManyOpts = {
-      filterByFormula: `{${fieldName}}='${value}'`,
+      filterByFormula: `{${whereKey}}='${whereValue}'`,
       maxRecords: 1,
       tableIdOrName,
     };
@@ -475,15 +488,18 @@ export class AirtableClient {
       await this.throttleIfNeeded();
       this.setLastRequestAt();
 
-      const res: Response = await fetch(listRecordsUrl, {
+      const init: RequestInit = {
         body,
+        cache: `no-store`,
         headers: this.headers,
 
         // We use a POST instead of a GET request with query parameters.
         // It's more ergonomic than encoding query parameters,
         // especially when using `filterByFormula`.
         method: `POST`,
-      });
+      };
+
+      const res: Response = await fetch(listRecordsUrl, init);
 
       numRequestsMade += 1;
 
@@ -572,10 +588,13 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(getRecordUrl, {
+    const init: RequestInit = {
+      cache: `no-store`,
       headers: this.headers,
       method: `GET`,
-    });
+    };
+
+    const res: Response = await fetch(getRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -637,11 +656,14 @@ export class AirtableClient {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
-    const res: Response = await fetch(updateRecordUrl, {
+    const init: RequestInit = {
       body,
+      cache: `no-store`,
       headers: this.headers,
       method: method.toUpperCase(),
-    });
+    };
+
+    const res: Response = await fetch(updateRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -678,8 +700,15 @@ export class AirtableClient {
       );
     }
 
+    const [whereKey, whereValue] = Object.entries(where)[0]!;
+
+    if (!whereKey || !whereValue) {
+      throw new TypeError(
+        `Airtable upsertRecord expected 'where' to have a truthy key and value`,
+      );
+    }
+
     const fieldsToRetrieve: string[] = Object.keys($set);
-    const whereKey = Object.keys(where)[0]!;
 
     if (fieldsToRetrieve.includes(whereKey)) {
       throw new TypeError(

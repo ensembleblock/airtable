@@ -1,4 +1,5 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
+/* global RequestInit */
 export const UpsertResults = {
     RECORD_CREATED: `RECORD_CREATED`,
     RECORD_UNCHANGED: `RECORD_UNCHANGED`,
@@ -87,11 +88,13 @@ export class AirtableClient {
         const body = JSON.stringify({ fields });
         await this.throttleIfNeeded();
         this.setLastRequestAt();
-        const res = await fetch(createRecordUrl, {
+        const init = {
             body,
+            cache: `no-store`,
             headers: this.headers,
             method: `POST`,
-        });
+        };
+        const res = await fetch(createRecordUrl, init);
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
     }
@@ -116,12 +119,15 @@ export class AirtableClient {
         if (Object.keys(where).length !== 1) {
             throw new TypeError(`Airtable findFirst expected 'where' to have exactly one key-value pair`);
         }
+        const [whereKey, whereValue] = Object.entries(where)[0];
+        if (!whereKey || !whereValue) {
+            throw new TypeError(`Airtable findFirst expected 'where' to have a truthy key and value`);
+        }
         if (!isNonEmptyStr(tableIdOrName)) {
             throw new TypeError(`Airtable findFirst expected 'tableIdOrName' to be a non-empty string`);
         }
-        const [fieldName, value] = Object.entries(where)[0];
         const opts = {
-            filterByFormula: `{${fieldName}}='${value}'`,
+            filterByFormula: `{${whereKey}}='${whereValue}'`,
             maxRecords: 1,
             tableIdOrName,
         };
@@ -210,14 +216,16 @@ export class AirtableClient {
             const body = JSON.stringify(payload);
             await this.throttleIfNeeded();
             this.setLastRequestAt();
-            const res = await fetch(listRecordsUrl, {
+            const init = {
                 body,
+                cache: `no-store`,
                 headers: this.headers,
                 // We use a POST instead of a GET request with query parameters.
                 // It's more ergonomic than encoding query parameters,
                 // especially when using `filterByFormula`.
                 method: `POST`,
-            });
+            };
+            const res = await fetch(listRecordsUrl, init);
             numRequestsMade += 1;
             if (!res.ok) {
                 throw new Error(`Airtable findMany failed with HTTP status ${res.status} ${res.statusText}`);
@@ -276,10 +284,12 @@ export class AirtableClient {
         const getRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
         await this.throttleIfNeeded();
         this.setLastRequestAt();
-        const res = await fetch(getRecordUrl, {
+        const init = {
+            cache: `no-store`,
             headers: this.headers,
             method: `GET`,
-        });
+        };
+        const res = await fetch(getRecordUrl, init);
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
     }
@@ -317,11 +327,13 @@ export class AirtableClient {
         const body = JSON.stringify({ fields });
         await this.throttleIfNeeded();
         this.setLastRequestAt();
-        const res = await fetch(updateRecordUrl, {
+        const init = {
             body,
+            cache: `no-store`,
             headers: this.headers,
             method: method.toUpperCase(),
-        });
+        };
+        const res = await fetch(updateRecordUrl, init);
         const data = await res.json();
         return { data, ok: res.ok, status: res.status, statusText: res.statusText };
     }
@@ -339,8 +351,11 @@ export class AirtableClient {
         if (Object.keys(where).length !== 1) {
             throw new TypeError(`Airtable upsertRecord expected 'where' to have exactly one key-value pair`);
         }
+        const [whereKey, whereValue] = Object.entries(where)[0];
+        if (!whereKey || !whereValue) {
+            throw new TypeError(`Airtable upsertRecord expected 'where' to have a truthy key and value`);
+        }
         const fieldsToRetrieve = Object.keys($set);
-        const whereKey = Object.keys(where)[0];
         if (fieldsToRetrieve.includes(whereKey)) {
             throw new TypeError(`Airtable upsertRecord '$set' should not include the 'where' key '${whereKey}'`);
         }
