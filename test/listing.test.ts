@@ -144,6 +144,31 @@ describe(`_airtableId precedence`, () => {
     ]);
   });
 
+  it(`findFirst without includeAirtableId returns the fields unchanged`, async () => {
+    const { client, requests } = createClient(page());
+
+    await expect(
+      client.findFirst({ tableIdOrName, where: { Name: `Jane` } }),
+    ).resolves.toStrictEqual({ _airtableId: decoy, Name: `Jane` });
+
+    expect(requests[0]?.body).toStrictEqual({
+      filterByFormula: `{Name}="Jane"`,
+      maxRecords: 1,
+    });
+  });
+
+  it(`findFirst returns null when no record matches`, async () => {
+    const { client } = createClient(json({ records: [] }));
+
+    await expect(
+      client.findFirst({
+        includeAirtableId: true,
+        tableIdOrName,
+        where: { Name: `Nobody` },
+      }),
+    ).resolves.toBeNull();
+  });
+
   it(`upsertRecord: updates the real record even if a field is named _airtableId`, async () => {
     const { client, requests } = createClient(
       json({
