@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-22)
 
 ### Breaking changes
 
@@ -53,7 +53,8 @@
 
 ### Maintenance
 
-- Dev tooling: TypeScript 6.0, Vitest 5, ESLint 9 flat config with `@percuss.io/eslint-config-ericcarraway` v9, Prettier 3.10, and np 12.
+- Dev tooling: TypeScript 6.0, Vitest 5, ESLint 9 flat config with `@percuss.io/eslint-config-ericcarraway` v9, and Prettier 3.10.
+- Releases are published from GitHub Actions with npm trusted publishing (OIDC), so no npm token is stored anywhere, and every release carries a [provenance attestation](https://docs.npmjs.com/generating-provenance-statements). `np` is no longer used. See [RELEASING.md](./RELEASING.md).
 - CI tests on Node 22.x, 24.x, and 26.x. It also packs the package and smoke-tests the tarball on Node 22.12.0, 22.x, 24.x, and 26.x, and compiles ESM and CommonJS TypeScript consumers against the shipped declarations.
 - `dist/` is no longer committed; it's built by the `prepare` lifecycle.
 - The test suite was rewritten and split by concern. It now has 100% statement, branch, function, and line coverage, enforced by `npm run test:coverage` in `npm run check` and in CI.
