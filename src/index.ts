@@ -79,6 +79,21 @@ export type CreateRecordOpts = {
   tableIdOrName: string;
 };
 
+export type DeleteRecordOpts = {
+  /** A string of at least 10 characters beginning with "rec". */
+  recordId: string;
+
+  tableIdOrName: string;
+};
+
+/** Airtable's response to a successful Delete Record request. */
+export type DeletedRecord = {
+  deleted: true;
+
+  /** The deleted record's ID. */
+  id: `rec${string}`;
+};
+
 export type FindFirstOpts = {
   /**
    * If you don't need every field, you can use this parameter
@@ -313,6 +328,60 @@ export class AirtableClient {
     });
 
     return toRecordResponse(`createRecord`, res);
+  }
+
+  /**
+   * Delete a single record.
+   *
+   * Requires a token with the `data.records:write` scope.
+   * @see https://airtable.com/developers/web/api/delete-record
+   *
+   * @returns Airtable's confirmation: `{ deleted: true, id }`.
+   * @throws {AirtableError} For any non-2xx response, e.g. `404` when the
+   * record doesn't exist (or was already deleted), `403` when the token lacks
+   * access, or `401` when it's invalid. Also thrown when a 2xx response
+   * isn't a confirmation for the requested record.
+   */
+  public async deleteRecord({
+    recordId,
+    tableIdOrName,
+  }: DeleteRecordOpts): Promise<DeletedRecord> {
+    if (!isValidRecordId(recordId)) {
+      throw new TypeError(
+        `Airtable deleteRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`,
+      );
+    }
+
+    if (!isNonEmptyStr(tableIdOrName)) {
+      throw new TypeError(
+        `Airtable deleteRecord expected 'tableIdOrName' to be a non-empty string`,
+      );
+    }
+
+    const res = await this.request({
+      method: `DELETE`,
+      url: this.tableUrl(tableIdOrName, recordId),
+    });
+
+    if (!res.ok) {
+      throw toAirtableError(`deleteRecord`, res);
+    }
+
+    const { body } = res;
+
+    if (
+      !isPlainObj(body) ||
+      body[`deleted`] !== true ||
+      body[`id`] !== recordId
+    ) {
+      throw malformedResponseError(
+        `deleteRecord`,
+        res,
+        `{ deleted: true, id: '${recordId}' }`,
+      );
+    }
+
+    return { deleted: true, id: recordId };
   }
 
   /**
