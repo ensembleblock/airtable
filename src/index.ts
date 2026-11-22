@@ -331,6 +331,9 @@ export class AirtableClient {
    * Returns the first record that matches the given filter object.
    * (A plain object with exactly one key-value pair.)
    * Returns `null` if no record is found.
+   *
+   * When `includeAirtableId` is true, `_airtableId` is always the record's
+   * real ID, even if the table has a field named `_airtableId`.
    */
   public async findFirst({
     fields,
@@ -380,8 +383,40 @@ export class AirtableClient {
       );
     }
 
+    const record = await this.findFirstRecord(`findFirst`, {
+      fields,
+      tableIdOrName,
+      whereKey,
+      whereValue,
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    return includeAirtableId ? withAirtableId(record) : record.fields;
+  }
+
+  /**
+   * Find the first record whose `whereKey` field equals `whereValue`.
+   * Returns the record as Airtable sent it (`id` & `fields`), or `null`.
+   */
+  private async findFirstRecord(
+    operation: string,
+    {
+      fields,
+      tableIdOrName,
+      whereKey,
+      whereValue,
+    }: {
+      fields: string[] | undefined;
+      tableIdOrName: string;
+      whereKey: string;
+      whereValue: boolean | number | string;
+    },
+  ): Promise<ListedRecord | null> {
     const opts: FindManyOpts = {
-      filterByFormula: buildEqualsFormula(`findFirst`, whereKey, whereValue),
+      filterByFormula: buildEqualsFormula(operation, whereKey, whereValue),
       maxRecords: 1,
       tableIdOrName,
     };
@@ -390,207 +425,28 @@ export class AirtableClient {
       opts.fields = fields;
     }
 
-    if (includeAirtableId) {
-      opts.includeAirtableId = true;
-    }
+    const records = await this.listRecords(operation, opts);
 
-    const records = await this.findMany(opts);
-
-    if (!Array.isArray(records) || records.length !== 1) {
-      return null;
-    }
-
-    return isPlainObj(records[0]) ? records[0] : null;
+    return records[0] ?? null;
   }
 
   /**
    * Retrieve many (or all) records from a table.
    * This method makes paginated requests as necessary.
    * Returns an array of records.
+   *
+   * When `includeAirtableId` is true, `_airtableId` is always the record's
+   * real ID, even if the table has a field named `_airtableId`.
    * @see https://airtable.com/developers/web/api/list-records
    */
-  public async findMany({
-    fields,
-    filterByFormula,
-    includeAirtableId,
-    maxRecords,
-    modifiedSinceHours,
-    tableIdOrName,
-  }: FindManyOpts): Promise<
-    (FieldsObj | (FieldsObj & { _airtableId: `rec${string}` }))[]
-  > {
-    if (fields) {
-      const fieldsArrIsValid =
-        Array.isArray(fields) &&
-        fields.length > 0 &&
-        fields.every((field) => !!field && typeof field === `string`);
+  public async findMany(
+    opts: FindManyOpts,
+  ): Promise<(FieldsObj | (FieldsObj & { _airtableId: `rec${string}` }))[]> {
+    const records = await this.listRecords(`findMany`, opts);
 
-      if (!fieldsArrIsValid) {
-        throw new TypeError(
-          `Airtable findMany expected 'fields' to be a lengthy array of strings`,
-        );
-      }
-    }
-    // Else, `fields` wasn't provided.  We'll retrieve all fields.
-
-    if (filterByFormula && !isNonEmptyStr(filterByFormula)) {
-      throw new TypeError(
-        `Airtable findMany expected 'filterByFormula' to be a non-string when given`,
-      );
-    }
-    // Else, `filterByFormula` wasn't provided.
-
-    if (
-      (maxRecords && (!Number.isInteger(maxRecords) || maxRecords < 1)) ||
-      maxRecords === 0
-    ) {
-      throw new TypeError(
-        `Airtable findMany expected 'maxRecords' to be a positive integer`,
-      );
-    }
-    // Else, `maxRecords` wasn't provided.  We'll retrieve all records.
-
-    if (
-      (modifiedSinceHours &&
-        (!Number.isInteger(modifiedSinceHours) || modifiedSinceHours < 1)) ||
-      modifiedSinceHours === 0
-    ) {
-      throw new TypeError(
-        `Airtable findMany expected 'modifiedSinceHours' to be a positive integer`,
-      );
-    }
-    // Else, `modifiedSinceHours` wasn't provided or is `null`.  We'll retrieve all records.
-
-    if (filterByFormula && modifiedSinceHours) {
-      throw new TypeError(
-        `Airtable findMany cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
-      );
-    }
-
-    if (!isNonEmptyStr(tableIdOrName)) {
-      throw new TypeError(
-        `Airtable findMany expected 'tableIdOrName' to be a non-empty string`,
-      );
-    }
-
-    type Payload = {
-      fields?: string[];
-      filterByFormula?: string;
-      maxRecords?: number;
-
-      /**
-       * The Airtable API may include an `offset` field in the response.
-       * To fetch the next page of records, we include the offset
-       * from the previous request in the next request.
-       */
-      offset?: string;
-    };
-
-    const basePayload: Payload = {};
-
-    if (fields) {
-      basePayload.fields = fields;
-    }
-
-    if (filterByFormula) {
-      basePayload.filterByFormula = filterByFormula;
-    } else if (modifiedSinceHours) {
-      basePayload.filterByFormula = `{lastModifiedTime}>=DATETIME_FORMAT(DATEADD(NOW(),-${modifiedSinceHours},'hours'))`;
-    }
-
-    if (maxRecords) {
-      basePayload.maxRecords = maxRecords;
-    }
-
-    const listRecordsUrl = this.tableUrl(tableIdOrName, `listRecords`);
-    const aggregateResponses: ListedRecord[][] = [];
-
-    let numRequestsMade = 0;
-    let offset: string | null = null;
-
-    while (numRequestsMade === 0 || offset) {
-      if (numRequestsMade > 500) {
-        /**
-         * This safety net prevents an infinite loop of requests that might
-         * happen if `offset` is (somehow) never set back to null in the
-         * body of the `while` loop.
-         *
-         * 50,000 records per base (divided amongst all tables in that base)
-         * is the maximum number of records on all non-enterprise plans.
-         */
-        throw new Error(
-          `Airtable findMany should not make more than 500 paginated requests`,
-        );
-      }
-
-      const payload: Payload = { ...basePayload };
-
-      if (offset && typeof offset === `string`) {
-        payload.offset = offset;
-      }
-
-      const res = await this.request({
-        body: payload,
-
-        // We use a POST instead of a GET request with query parameters.
-        // It's more ergonomic than encoding query parameters,
-        // especially when using `filterByFormula`.
-        method: `POST`,
-        url: listRecordsUrl,
-      });
-
-      numRequestsMade += 1;
-
-      if (!res.ok) {
-        throw toAirtableError(`findMany`, res);
-      }
-
-      // Never interpret a malformed page as "no records":
-      // `upsertRecord` would treat that as "not found" & create a duplicate.
-      const page = parseListRecordsPage(res.body);
-
-      if (!page) {
-        throw malformedResponseError(
-          `findMany`,
-          res,
-          `{ records: [...], offset?: string }`,
-        );
-      }
-
-      if (page.records.length > 0) {
-        aggregateResponses.push(page.records);
-      }
-
-      // `null` when there are no more records to fetch.
-      ({ offset } = page);
-    }
-
-    /**
-     * Basic mapping function to extract fields from a record.
-     * Drops the outer `id` & `createdTime` fields.
-     */
-    const basicMapFn = (record: ListedRecord): FieldsObj => record.fields;
-
-    /**
-     * Complex mapping function to include the Airtable ID as `_airtableId`
-     * along with the record's fields.
-     */
-    const complexMapFn = (
-      record: ListedRecord,
-    ): FieldsObj & { _airtableId: `rec${string}` } => ({
-      _airtableId: record.id,
-      ...record.fields,
-    });
-
-    const records: (
-      FieldsObj | (FieldsObj & { _airtableId: `rec${string}` })
-    )[] = aggregateResponses
-      // Flatten the array of arrays into a single array of records.
-      .flat()
-      // Determine which mapping function to use based on `includeAirtableId`.
-      .map(includeAirtableId ? complexMapFn : basicMapFn);
-
-    return records;
+    return opts.includeAirtableId
+      ? records.map(withAirtableId)
+      : records.map((record) => record.fields);
   }
 
   /**
@@ -627,6 +483,174 @@ export class AirtableClient {
     });
 
     return toRecordResponse(`getRecord`, res);
+  }
+
+  /**
+   * Validate `findMany` options & fetch every matching record,
+   * following `offset` across pages, up to `maxRecords` records in total.
+   * Every page is validated before it's used.
+   */
+  private async listRecords(
+    operation: string,
+    {
+      fields,
+      filterByFormula,
+      maxRecords,
+      modifiedSinceHours,
+      tableIdOrName,
+    }: FindManyOpts,
+  ): Promise<ListedRecord[]> {
+    if (fields) {
+      const fieldsArrIsValid =
+        Array.isArray(fields) &&
+        fields.length > 0 &&
+        fields.every((field) => !!field && typeof field === `string`);
+
+      if (!fieldsArrIsValid) {
+        throw new TypeError(
+          `Airtable ${operation} expected 'fields' to be a lengthy array of strings`,
+        );
+      }
+    }
+    // Else, `fields` wasn't provided.  We'll retrieve all fields.
+
+    if (filterByFormula && !isNonEmptyStr(filterByFormula)) {
+      throw new TypeError(
+        `Airtable ${operation} expected 'filterByFormula' to be a non-empty string when given`,
+      );
+    }
+    // Else, `filterByFormula` wasn't provided.
+
+    if (
+      (maxRecords && (!Number.isInteger(maxRecords) || maxRecords < 1)) ||
+      maxRecords === 0
+    ) {
+      throw new TypeError(
+        `Airtable ${operation} expected 'maxRecords' to be a positive integer`,
+      );
+    }
+    // Else, `maxRecords` wasn't provided.  We'll retrieve all records.
+
+    if (
+      (modifiedSinceHours &&
+        (!Number.isInteger(modifiedSinceHours) || modifiedSinceHours < 1)) ||
+      modifiedSinceHours === 0
+    ) {
+      throw new TypeError(
+        `Airtable ${operation} expected 'modifiedSinceHours' to be a positive integer`,
+      );
+    }
+    // Else, `modifiedSinceHours` wasn't provided or is `null`.  We'll retrieve all records.
+
+    if (filterByFormula && modifiedSinceHours) {
+      throw new TypeError(
+        `Airtable ${operation} cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
+      );
+    }
+
+    if (!isNonEmptyStr(tableIdOrName)) {
+      throw new TypeError(
+        `Airtable ${operation} expected 'tableIdOrName' to be a non-empty string`,
+      );
+    }
+
+    type Payload = {
+      fields?: string[];
+      filterByFormula?: string;
+      maxRecords?: number;
+
+      /**
+       * The Airtable API may include an `offset` field in the response.
+       * To fetch the next page of records, we include the offset
+       * from the previous request in the next request.
+       */
+      offset?: string;
+    };
+
+    const basePayload: Payload = {};
+
+    if (fields) {
+      basePayload.fields = fields;
+    }
+
+    if (filterByFormula) {
+      basePayload.filterByFormula = filterByFormula;
+    } else if (modifiedSinceHours) {
+      basePayload.filterByFormula = `{lastModifiedTime}>=DATETIME_FORMAT(DATEADD(NOW(),-${String(modifiedSinceHours)},'hours'))`;
+    }
+
+    if (maxRecords) {
+      basePayload.maxRecords = maxRecords;
+    }
+
+    const listRecordsUrl = this.tableUrl(tableIdOrName, `listRecords`);
+    const records: ListedRecord[] = [];
+
+    let numRequestsMade = 0;
+    let offset: string | null = null;
+
+    while (numRequestsMade === 0 || offset) {
+      if (numRequestsMade > 500) {
+        /**
+         * This safety net prevents an infinite loop of requests that might
+         * happen if `offset` is (somehow) never set back to null in the
+         * body of the `while` loop.
+         *
+         * 50,000 records per base (divided amongst all tables in that base)
+         * is the maximum number of records on all non-enterprise plans.
+         */
+        throw new Error(
+          `Airtable ${operation} should not make more than 500 paginated requests`,
+        );
+      }
+
+      const payload: Payload = { ...basePayload };
+
+      if (offset) {
+        payload.offset = offset;
+      }
+
+      const res = await this.request({
+        body: payload,
+
+        // We use a POST instead of a GET request with query parameters.
+        // It's more ergonomic than encoding query parameters,
+        // especially when using `filterByFormula`.
+        method: `POST`,
+        url: listRecordsUrl,
+      });
+
+      numRequestsMade += 1;
+
+      if (!res.ok) {
+        throw toAirtableError(operation, res);
+      }
+
+      // Never interpret a malformed page as "no records":
+      // `upsertRecord` would treat that as "not found" & create a duplicate.
+      const page = parseListRecordsPage(res.body);
+
+      if (!page) {
+        throw malformedResponseError(
+          operation,
+          res,
+          `{ records: [...], offset?: string }`,
+        );
+      }
+
+      records.push(...page.records);
+
+      // `maxRecords` bounds the total across all pages. Airtable applies it
+      // server-side; we also stop paginating & trim defensively.
+      if (maxRecords && records.length >= maxRecords) {
+        return records.slice(0, maxRecords);
+      }
+
+      // `null` when there are no more records to fetch.
+      ({ offset } = page);
+    }
+
+    return records;
   }
 
   /**
@@ -742,6 +766,13 @@ export class AirtableClient {
   /**
    * If a record is found that matches the `where` object, the record will be updated.
    * Otherwise, a new record will be created.
+   *
+   * Only the fields in `$set` whose values differ from the existing record
+   * are sent in the update (PATCH).
+   *
+   * This is a read-then-write sequence, not an atomic operation: concurrent
+   * upserts for the same `where` value (from this or any other client) can
+   * both see "not found" & both create a record.
    */
   public async upsertRecord({
     $set,
@@ -785,21 +816,18 @@ export class AirtableClient {
       );
     }
 
-    const findFirstOpts: FindFirstOpts = {
-      fields: fieldsToRetrieve,
-      includeAirtableId: true,
+    // Read the record as Airtable sent it, so the update below always
+    // targets its real ID (never a field that happens to be named
+    // `_airtableId`). Retrieve only the fields we might update; when `$set`
+    // is empty, retrieve just the `where` field.
+    const foundRecord = await this.findFirstRecord(`upsertRecord`, {
+      fields: fieldsToRetrieve.length > 0 ? fieldsToRetrieve : [whereKey],
       tableIdOrName,
-      where,
-    };
+      whereKey,
+      whereValue,
+    });
 
-    const foundRecord:
-      | FieldsObj
-      | (FieldsObj & {
-          _airtableId: `rec${string}`;
-        })
-      | null = await this.findFirst(findFirstOpts);
-
-    if (!isPlainObj(foundRecord)) {
+    if (!foundRecord) {
       const createRecordOpts: CreateRecordOpts = {
         fields: {
           ...$set,
@@ -826,13 +854,7 @@ export class AirtableClient {
       };
     }
 
-    const { _airtableId, ...existingFields } = foundRecord;
-
-    if (!isValidRecordId(_airtableId)) {
-      throw new Error(
-        `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the found record`,
-      );
-    }
+    const { fields: existingFields, id: _airtableId } = foundRecord;
 
     const fieldsToUpdate: FieldsObj = {};
 
@@ -870,8 +892,9 @@ export class AirtableClient {
       };
     }
 
+    // PATCH only the fields that actually changed.
     const updateRecordOpts: UpdateRecordOpts = {
-      fields: $set,
+      fields: fieldsToUpdate,
       recordId: _airtableId,
       tableIdOrName,
     };
@@ -889,7 +912,7 @@ export class AirtableClient {
     }
 
     return {
-      _airtableId: updateRecordRes.data.id,
+      _airtableId,
       upsertResult: UpsertResults.RECORD_UPDATED,
     };
   }
@@ -1005,6 +1028,16 @@ function extractAirtableError(body: unknown): {
   }
 
   return { message: null, type: null };
+}
+
+/**
+ * A record's fields plus its ID as `_airtableId`.
+ * The real record ID takes precedence over a field named `_airtableId`.
+ */
+function withAirtableId(
+  record: ListedRecord,
+): FieldsObj & { _airtableId: `rec${string}` } {
+  return { ...record.fields, _airtableId: record.id };
 }
 
 /** Convert an `AirtableResponse` envelope back to a `RawResponse`. */
