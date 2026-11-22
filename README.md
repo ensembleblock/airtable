@@ -2,120 +2,272 @@
 
 **Lightweight Airtable API client powered by fetch.**
 
-## Overview
+- **Zero runtime dependencies.** Uses the platform's `fetch`, or one you provide.
+- **TypeScript-first.** Ships declarations for every method, option, and response.
+- **Ergonomic helpers** such as `findFirst` & `upsertRecord`, alongside the basic record operations.
+- **Built-in throttling** to stay within Airtable's per-base rate limit.
+- **Typed errors** via `AirtableError`, which carries Airtable's status, error type, and response body.
 
-`@ensembleblock/airtable` is a minimalistic and efficient client library designed to interact with Airtable's API using modern JavaScript standards. It leverages the `fetch` API for making HTTP requests, ensuring zero runtime dependencies and offering a clean, ergonomic API with ORM-style methods for common operations like `findFirst`, `upsertRecord`, and more.
+## Requirements
 
-## Features
-
-- **Zero runtime dependencies**: Pure JavaScript implementation.
-- **Modern API**: Built on the `fetch` API.
-- **Input validation**: Provides clear and meaningful error messages for invalid inputs.
-- **Ergonomic methods**: Includes ORM-style methods such as `findFirst` and `upsertRecord` for intuitive data manipulation.
-- **Customizable**: Options like `modifiedSinceHours` allow for fine-grained control over data retrieval.
+- Node.js **22.12.0 or later**.
+- Works with both `import` and `require()`. The package is ESM; CommonJS callers load it through Node's `require(esm)` support. Node 22.12.0 prints an `ExperimentalWarning` when `require()` loads it; later 22.x releases and Node 24+ don't.
 
 ## Installation
-
-Install the package via npm:
 
 ```bash
 npm install @ensembleblock/airtable
 ```
 
-## Usage
+## Quick start
 
-### Initialization
-
-Create an instance of `AirtableClient` with your Airtable API key and base ID:
-
-```javascript
+```ts
 import { AirtableClient } from '@ensembleblock/airtable';
 
 const client = new AirtableClient({
-  apiKey: 'your_airtable_api_key',
-  baseId: 'your_airtable_base_id',
+  apiKey: 'your_personal_access_token',
+  baseId: 'appXXXXXXXXXXXXXX',
 });
-```
 
-### Basic Operations
-
-#### Create a Record
-
-```javascript
-const response = await client.createRecord({
-  tableIdOrName: 'Table Name',
-  fields: {
-    Name: 'John Doe',
-    Age: 30,
-  },
-});
-console.log(response.data);
-```
-
-#### Find the First Matching Record
-
-```javascript
 const record = await client.findFirst({
-  tableIdOrName: 'Table Name',
-  where: { Name: 'John Doe' },
-  fields: ['Name', 'Age'],
+  tableIdOrName: 'Contacts',
+  where: { Email: 'jane@example.com' },
 });
-console.log(record);
 ```
 
-#### Upsert a Record
+## Authentication & scopes
 
-```javascript
-const result = await client.upsertRecord({
-  tableIdOrName: 'Table Name',
-  where: { Email: 'johndoe@example.com' },
-  $set: { Age: 31 },
+Create a [personal access token](https://airtable.com/create/tokens) that has access to your base and the scopes for the methods you call:
+
+| Method                                      | Required scope(s)                          |
+| ------------------------------------------- | ------------------------------------------ |
+| `findMany`, `findFirst`, `getRecord`        | `data.records:read`                        |
+| `createRecord`, `updateRecord`              | `data.records:write`                       |
+| `deleteRecord`                              | `data.records:write`                       |
+| `upsertRecord`                              | `data.records:read` & `data.records:write` |
+| `listTables` (Airtable's "Get base schema") | `schema.bases:read`                        |
+
+The token also needs access to the base itself. Airtable returns `403` for a missing scope and for missing base access alike.
+
+## API
+
+### `new AirtableClient(options)`
+
+| Option    | Type           | Description                                                                                                                                                  |
+| --------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apiKey`  | `string`       | **Required.** Your Airtable token.                                                                                                                           |
+| `baseId`  | `string`       | **Required.** The base ID (begins with `app`).                                                                                                               |
+| `baseUrl` | `string`       | Optional API root, without a trailing slash. Defaults to `https://api.airtable.com/v0`. A proxy path is fine (e.g. `https://proxy.example.com/airtable/v0`). |
+| `fetch`   | `typeof fetch` | Optional `fetch` implementation (instrumentation, tests). Defaults to the global `fetch`, looked up at request time.                                         |
+
+Table names are passed **raw**: `'Q1 / Q2 Leads'`, not `'Q1%20%2F%20Q2%20Leads'`. The client percent-encodes `tableIdOrName` and `recordId` itself. You can also pass a table ID (`tbl…`).
+
+### Records
+
+#### `createRecord({ tableIdOrName, fields }): Promise<AirtableResponse>`
+
+```ts
+const res = await client.createRecord({
+  tableIdOrName: 'Contacts',
+  fields: { Name: 'Jane Doe', Age: 30 },
 });
-console.log(result);
+
+if (res.ok) {
+  console.log(res.data.id); // 'rec…'
+} else {
+  console.error(res.status, res.data); // Airtable's error body
+}
 ```
 
-### API Reference
+#### `getRecord({ tableIdOrName, recordId }): Promise<AirtableResponse>`
 
-#### `AirtableClient`
+```ts
+const res = await client.getRecord({ tableIdOrName: 'Contacts', recordId });
 
-##### `constructor(options: AirtableClientOpts)`
+if (res.ok) {
+  console.log(res.data.fields);
+}
+```
 
-Creates a new instance of the `AirtableClient`.
+Airtable omits "empty" fields (e.g. `""`, `[]`, `false`) from records.
 
-- `options.apiKey` (string): Your Airtable API key (required).
-- `options.baseId` (string): The ID of your Airtable base (required).
-- `options.baseUrl` (string): The base URL for Airtable API (optional, defaults to `https://api.airtable.com/v0`).
+#### `updateRecord({ tableIdOrName, recordId, fields, method? }): Promise<AirtableResponse>`
 
-##### `createRecord(options: CreateRecordOpts): Promise<AirtableResponse>`
+`method` defaults to `'PATCH'`, which updates only the given fields. `'PUT'` clears every field you don't specify.
 
-Creates a new record in the specified table.
+```ts
+const res = await client.updateRecord({
+  tableIdOrName: 'Contacts',
+  recordId,
+  fields: { Age: 31 },
+});
+```
 
-##### `findFirst(options: FindFirstOpts): Promise<FieldsObj | (FieldsObj & { _airtableId: string }) | null>`
+#### `deleteRecord({ tableIdOrName, recordId }): Promise<DeletedRecord>`
 
-Finds the first record that matches the given filter criteria.
+Deletes a single record and resolves to Airtable's confirmation, `{ deleted: true, id }`. It **throws** `AirtableError` for any non-2xx response, so you decide how to treat a missing record:
 
-##### `upsertRecord(options: UpsertRecordOpts): Promise<{ _airtableId: string; upsertResult: UpsertResult }>`
+```ts
+import { AirtableError } from '@ensembleblock/airtable';
 
-Upserts a record: updates it if it exists, or creates it if it doesn't.
+try {
+  await client.deleteRecord({ tableIdOrName: 'Contacts', recordId });
+} catch (err) {
+  if (err instanceof AirtableError && err.status === 404) {
+    // The record doesn't exist (or was already deleted).
+  } else {
+    throw err;
+  }
+}
+```
 
-### Types
+#### `findMany(options): Promise<FieldsObj[]>`
 
-- `AirtableClientOpts`
-- `FieldsObj`
-- `AirtableRecord`
-- `AirtableResponse`
-- `CreateRecordOpts`
-- `FindFirstOpts`
-- `FindManyOpts`
-- `GetRecordOpts`
-- `UpdateRecordOpts`
-- `UpsertRecordOpts`
-- `UpsertResult`
+Retrieves matching records, following Airtable's pagination. Each record is returned as its fields object.
 
-### Contributing
+```ts
+const contacts = await client.findMany({
+  tableIdOrName: 'Contacts',
+  fields: ['Name', 'Email'], // optional: limit the fields returned
+  filterByFormula: `{Status} = "Active"`, // optional; passed to Airtable verbatim
+  maxRecords: 100, // optional: total across all pages (like SQL LIMIT)
+  includeAirtableId: true, // optional: add each record's ID as `_airtableId`
+});
+```
 
-Contributions are welcome! Please feel free to open issues or submit pull requests on the [GitHub repository](https://github.com/ensembleblock/airtable).
+`modifiedSinceHours: number` limits results to records modified within that many hours. It relies on a `lastModifiedTime` field in your table and can't be combined with `filterByFormula`.
 
-### License
+With `includeAirtableId`, `_airtableId` is always the record's real ID, even if your table has a field with that name.
 
-This project is licensed under the MIT License.
+#### `findFirst({ tableIdOrName, where, fields?, includeAirtableId? }): Promise<FieldsObj | null>`
+
+Returns the first record whose field equals the given value, or `null`.
+
+```ts
+const contact = await client.findFirst({
+  tableIdOrName: 'Contacts',
+  where: { Email: 'jane@example.com' },
+  includeAirtableId: true,
+});
+```
+
+- `where` must have exactly one key-value pair, and both the key and the value must be truthy.
+- The value is compared as a string. The client escapes quotes and backslashes, so values like `O'Brien` or `say "hi"` are safe.
+- Field names containing `{` or `}` can't be referenced in an Airtable formula and are rejected. Use the field ID (`fld…`) instead.
+
+#### `upsertRecord({ tableIdOrName, where, $set }): Promise<{ _airtableId, upsertResult }>`
+
+Finds the first record matching `where` and updates it with `$set`, or creates a record with `{ ...$set, ...where }` if none matches.
+
+```ts
+const { _airtableId, upsertResult } = await client.upsertRecord({
+  tableIdOrName: 'Contacts',
+  where: { Email: 'jane@example.com' },
+  $set: { Name: 'Jane Doe', Age: 31 },
+});
+// upsertResult: 'RECORD_CREATED' | 'RECORD_UPDATED' | 'RECORD_UNCHANGED'
+```
+
+- Only fields whose values actually changed are sent in the update.
+- `where` follows the same rules as `findFirst`, and `$set` must not include the `where` key.
+- An upsert is a read followed by a write, **not** an atomic operation. Concurrent upserts for the same `where` value can both find nothing and both create a record.
+- Throws `AirtableError` if the lookup, create, or update fails. A failed or malformed lookup never leads to a create.
+
+### Schema
+
+#### `listTables(): Promise<AirtableTable[]>`
+
+Lists the tables in the client's base, with each table's fields and views (Airtable's [Get base schema](https://airtable.com/developers/web/api/get-base-schema) endpoint). Requires the `schema.bases:read` scope.
+
+```ts
+const tables = await client.listTables();
+
+for (const table of tables) {
+  console.log(table.id, table.name);
+
+  for (const field of table.fields) {
+    console.log(`  ${field.name}: ${field.type}`, field.options ?? '');
+  }
+}
+```
+
+Each `AirtableTable` has `id`, `name`, `description?`, `primaryFieldId`, `fields` (`id`, `name`, `type`, `description?`, `options?`), and `views` (`id`, `name`, `type`). Field `options` vary by field type and are left open-ended. Unknown properties and new field or view types are passed through unchanged.
+
+This method requests `{baseUrl}/meta/bases/{baseId}/tables`. If you use a custom `baseUrl` (for example, a proxy), it must also forward `/meta/` paths.
+
+## Error handling
+
+The record methods follow one of two error contracts:
+
+| Methods                                                               | Non-2xx HTTP response                                                       |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `createRecord`, `getRecord`, `updateRecord`                           | **Resolve** with `{ ok: false, status, statusText, data }`. Check `res.ok`. |
+| `deleteRecord`, `listTables`, `findMany`, `findFirst`, `upsertRecord` | **Throw** `AirtableError`.                                                  |
+
+`AirtableResponse` is a discriminated union. Narrow it with `ok` before reading `data`:
+
+```ts
+const res = await client.getRecord({ tableIdOrName: 'Contacts', recordId });
+
+res.data.id; // ❌ type error: `data` is `unknown` until `ok` is checked
+
+if (res.ok) {
+  res.data.id; // ✅ `data` is an `AirtableRecord`
+} else {
+  res.data; // `unknown`: Airtable's error body (raw text or `null` if it wasn't JSON)
+}
+```
+
+`AirtableError` extends `Error` and adds:
+
+| Property     | Type             | Description                                                                          |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------ |
+| `status`     | `number`         | HTTP status code.                                                                    |
+| `statusText` | `string`         | HTTP status text (may be empty).                                                     |
+| `type`       | `string \| null` | Airtable's error type, e.g. `NOT_FOUND` or `INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND`. |
+| `body`       | `unknown`        | The parsed JSON body, the raw text if it wasn't JSON, or `null` if empty.            |
+
+Airtable's error message, when present, is included in `err.message`.
+
+**Malformed responses.** All methods reject with `AirtableError` when a 2xx response isn't the shape they rely on, such as a record without an `id`. A malformed response is never reported as a success.
+
+**Network failures** (DNS, connection resets, aborted requests) are not wrapped. They reject with whatever `fetch` throws.
+
+## Rate limiting
+
+Airtable allows [5 requests per second per base](https://airtable.com/developers/web/api/rate-limits). Each client spaces the start of its requests at least 200 ms apart, in call order. It doesn't wait for earlier responses, so slow responses don't hold up later requests.
+
+Throttling is **per client instance**. It doesn't coordinate separate clients, processes, or other users of the same base or token.
+
+The client doesn't retry. A `429` response follows each method's normal error contract (an `ok: false` envelope or an `AirtableError` with `status === 429`). Airtable asks clients to wait 30 seconds before retrying after a `429`.
+
+## Types
+
+Exported types: `AirtableClientOpts`, `AirtableRecord`, `AirtableResponse`, `AirtableTable`, `AirtableField`, `AirtableFieldType`, `AirtableView`, `AirtableViewType`, `DeletedRecord`, `FieldsObj`, `CreateRecordOpts`, `DeleteRecordOpts`, `FindFirstOpts`, `FindManyOpts`, `GetRecordOpts`, `UpdateRecordOpts`, `UpsertRecordOpts`, and `UpsertResult`.
+
+Exported values: `AirtableClient`, `AirtableError`, and `UpsertResults`.
+
+## Migrating to 0.1.0
+
+- **Node.js 22.12.0 or later is required.** Node 18 and 20 are end-of-life.
+- **TypeScript:** narrow `AirtableResponse` with `if (res.ok)` before reading `res.data.id`. See [Error handling](#error-handling).
+- `findMany`, `findFirst`, and `upsertRecord` throw `AirtableError` (a subclass of `Error`) for HTTP failures, and now also reject malformed responses instead of treating them as "no records".
+- `createRecord`, `getRecord`, and `updateRecord` still resolve for non-2xx responses, but a non-JSON error body (e.g. an HTML 502 page) now resolves as `ok: false` instead of throwing a `SyntaxError`, and a malformed 2xx body rejects with `AirtableError`.
+- `findFirst` and `upsertRecord` escape `where` values and reject field names containing `{` or `}`.
+- Table names are percent-encoded for you. If you were pre-encoding names, pass the raw name instead.
+
+See the [CHANGELOG](./CHANGELOG.md) for the full list of changes.
+
+## Contributing
+
+Contributions are welcome! Please open an issue or a pull request on [GitHub](https://github.com/ensembleblock/airtable).
+
+```bash
+npm ci
+npm run check         # lint, format, typecheck, and test
+npm run test:package  # pack the package and smoke-test it as a consumer
+```
+
+## License
+
+MIT
