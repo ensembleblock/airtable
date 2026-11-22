@@ -1,11 +1,14 @@
 /**
  * Request throttling: Airtable allows 5 requests per second per base,
  * so a client spaces the *start* of its requests at least 200 ms apart.
+ *
+ * `RequestThrottle` is tested directly, then through `AirtableClient`.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AirtableClient } from '../src/index.js';
+import { RequestThrottle } from '../src/throttle.js';
 import {
   apiKey,
   baseId,
@@ -145,5 +148,153 @@ describe(`request throttling`, () => {
 
     expect(a.startTimes).toStrictEqual([0]);
     expect(b.startTimes).toStrictEqual([0]);
+  });
+});
+
+describe(`RequestThrottle`, () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: 0 });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  /** Run `count` tasks at once; record each start time & settle them all. */
+  const runAll = async (throttle: RequestThrottle, count: number) => {
+    const starts: number[] = [];
+    const results = [...Array(count).keys()].map((i) =>
+      throttle.run(() => {
+        starts.push(performance.now());
+
+        return Promise.resolve(i);
+      }),
+    );
+
+    await vi.runAllTimersAsync();
+
+    return { results: await Promise.all(results), starts };
+  };
+
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY])(
+    `rejects a minimum gap of %s`,
+    (gap) => {
+      expect(() => new RequestThrottle(gap)).toThrow(
+        new TypeError(
+          `RequestThrottle expected 'minMillisBetweenStarts' to be a non-negative finite number`,
+        ),
+      );
+    },
+  );
+
+  it(`resolves each caller with its own task's result, in call order`, async () => {
+    const { results, starts } = await runAll(new RequestThrottle(50), 4);
+
+    expect(results).toStrictEqual([0, 1, 2, 3]);
+    expect(starts).toStrictEqual([0, 50, 100, 150]);
+  });
+
+  it(`does not delay tasks when the gap is zero`, async () => {
+    const { starts } = await runAll(new RequestThrottle(0), 3);
+
+    expect(starts).toStrictEqual([0, 0, 0]);
+  });
+
+  it(`starts the first task immediately`, async () => {
+    const throttle = new RequestThrottle(1_000);
+    const start = vi.fn(() => Promise.resolve(`done`));
+
+    const result = throttle.run(start);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(start).toHaveBeenCalledTimes(1);
+    await expect(result).resolves.toBe(`done`);
+  });
+
+  it(`rejects only the caller whose task throws synchronously`, async () => {
+    const throttle = new RequestThrottle(100);
+    const boom = new Error(`sync boom`);
+    const starts: number[] = [];
+
+    const first = throttle.run(() => {
+      starts.push(performance.now());
+      throw boom;
+    });
+    const second = throttle.run(() => {
+      starts.push(performance.now());
+
+      return Promise.resolve(`second`);
+    });
+
+    // Attach handlers before timers run, so no rejection goes unhandled.
+    const settled = Promise.allSettled([first, second]);
+    await vi.runAllTimersAsync();
+
+    expect(await settled).toStrictEqual([
+      { reason: boom, status: `rejected` },
+      { status: `fulfilled`, value: `second` },
+    ]);
+
+    // The failed task still counts as a start, so the gap is kept.
+    expect(starts).toStrictEqual([0, 100]);
+  });
+
+  it(`propagates an async rejection without blocking later tasks`, async () => {
+    const throttle = new RequestThrottle(100);
+    const boom = new Error(`async boom`);
+
+    const first = throttle.run(() => Promise.reject(boom));
+    const second = throttle.run(() => Promise.resolve(`second`));
+
+    const settled = Promise.allSettled([first, second]);
+    await vi.runAllTimersAsync();
+
+    expect(await settled).toStrictEqual([
+      { reason: boom, status: `rejected` },
+      { status: `fulfilled`, value: `second` },
+    ]);
+  });
+
+  it(`sleeps again if a timer fires before the gap has elapsed`, async () => {
+    // Timers may fire slightly early relative to the monotonic clock.
+    // Simulate that by making the clock lag 5 ms behind the timers.
+    const fakeNow = performance.now.bind(performance);
+    let lag = 0;
+    vi.spyOn(performance, `now`).mockImplementation(() => fakeNow() - lag);
+
+    const throttle = new RequestThrottle(200);
+    const starts: number[] = [];
+    const task = () => {
+      starts.push(performance.now());
+
+      return Promise.resolve();
+    };
+
+    const runs = [throttle.run(task), throttle.run(task)];
+
+    // The second task is now sleeping for 200 ms; its timer fires "early".
+    await vi.advanceTimersByTimeAsync(199);
+    lag = 5;
+
+    await vi.runAllTimersAsync();
+    await Promise.all(runs);
+
+    expect(starts).toStrictEqual([0, 200]);
+  });
+
+  it(`does not call a task before its turn`, async () => {
+    const throttle = new RequestThrottle(200);
+    const second = vi.fn(() => Promise.resolve(2));
+
+    const first = throttle.run(() => Promise.resolve(1));
+    const result = throttle.run(second);
+
+    await vi.advanceTimersByTimeAsync(199);
+    expect(second).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    await expect(Promise.all([first, result])).resolves.toStrictEqual([1, 2]);
   });
 });
