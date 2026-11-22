@@ -1,12 +1,20 @@
 # @ensembleblock/airtable
 
-**Lightweight Airtable API client powered by fetch.**
+[![npm version](https://img.shields.io/npm/v/@ensembleblock/airtable)](https://www.npmjs.com/package/@ensembleblock/airtable)
+[![CI](https://github.com/ensembleblock/airtable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ensembleblock/airtable/actions/workflows/ci.yml)
+[![coverage: 100%](https://img.shields.io/badge/coverage-100%25-brightgreen)](./vitest.config.js)
+[![types: included](https://img.shields.io/badge/types-included-blue)](#types)
+[![license: MIT](https://img.shields.io/npm/l/@ensembleblock/airtable)](./LICENSE)
 
-- **Zero runtime dependencies.** Uses the platform's `fetch`, or one you provide.
-- **TypeScript-first.** Ships declarations for every method, option, and response.
-- **Ergonomic helpers** such as `findFirst` & `upsertRecord`, alongside the basic record operations.
-- **Built-in throttling** to stay within Airtable's per-base rate limit.
-- **Typed errors** via `AirtableError`, which carries Airtable's status, error type, and response body.
+**A small, typed Airtable client built on `fetch`, with zero runtime dependencies.**
+
+- **Zero runtime dependencies.** It uses the platform's `fetch`, or one you provide. Nothing else gets installed.
+- **100% test coverage, enforced in CI.** Every line and branch is tested, and the build fails if coverage drops. CI also installs the packed tarball and tests it on Node.js 22.12.0 through 26.
+- **Errors you can act on.** `AirtableError` carries the HTTP status, Airtable's error type, and the response body. A malformed response is never reported as a success.
+- **Safe by default.** `where` values are escaped, so input like `O'Brien` can't break a formula or inject code into it. Table names and record IDs are URL-encoded for you.
+- **Built-in throttling** keeps you within Airtable's limit of 5 requests per second per base.
+- **TypeScript-first.** It ships declarations for every method, option, and response.
+- **Helpers** such as `findFirst` and `upsertRecord`, plus `findMany` pagination, alongside the basic record operations.
 
 ## Requirements
 
@@ -25,14 +33,23 @@ npm install @ensembleblock/airtable
 import { AirtableClient } from '@ensembleblock/airtable';
 
 const client = new AirtableClient({
-  apiKey: 'your_personal_access_token',
+  apiKey: process.env.AIRTABLE_TOKEN!, // the constructor throws if it's missing
   baseId: 'appXXXXXXXXXXXXXX',
 });
 
-const record = await client.findFirst({
+// Read: the first matching record's fields, or `null`.
+const contact = await client.findFirst({
   tableIdOrName: 'Contacts',
   where: { Email: 'jane@example.com' },
 });
+
+// Write: update the matching record, or create it if none exists.
+const { upsertResult } = await client.upsertRecord({
+  tableIdOrName: 'Contacts',
+  where: { Email: 'jane@example.com' },
+  $set: { Name: 'Jane Doe', Status: 'Active' },
+});
+// 'RECORD_CREATED' | 'RECORD_UPDATED' | 'RECORD_UNCHANGED'
 ```
 
 ## Authentication & scopes
@@ -197,7 +214,7 @@ This method requests `{baseUrl}/meta/bases/{baseId}/tables`. If you use a custom
 
 ## Error handling
 
-The record methods follow one of two error contracts:
+The single-record CRUD methods resolve with a result envelope you check, much like `fetch`'s `Response`. The other methods throw:
 
 | Methods                                                               | Non-2xx HTTP response                                                       |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |

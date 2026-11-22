@@ -56,3 +56,5 @@
 - Dev tooling: TypeScript 6.0, Vitest 5, ESLint 9 flat config with `@percuss.io/eslint-config-ericcarraway` v9, Prettier 3.10, and np 12.
 - CI tests on Node 22.x, 24.x, and 26.x. It also packs the package and smoke-tests the tarball on Node 22.12.0, 22.x, 24.x, and 26.x, and compiles ESM and CommonJS TypeScript consumers against the shipped declarations.
 - `dist/` is no longer committed; it's built by the `prepare` lifecycle.
+- The test suite was rewritten and split by concern. It now has 100% statement, branch, function, and line coverage, enforced by `npm run test:coverage` in `npm run check` and in CI.
+- The source was split into modules (`types`, `responses`, `records`, `guards`, `throttle`, `airtable-error`). The public API is unchanged.
