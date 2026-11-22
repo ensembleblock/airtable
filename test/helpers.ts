@@ -22,6 +22,25 @@ export type RecordedRequest = {
 export type MockReply =
   Response | ((request: RecordedRequest) => Promise<Response> | Response);
 
+/** A complete Airtable record, as returned by get/create/update. */
+export const makeRecord = (
+  fields: Record<string, unknown> = {},
+  id = recordId,
+) => ({
+  createdTime: `2026-11-21T00:00:00.000Z`,
+  fields,
+  id,
+});
+
+/** Build a text `Response` (e.g. an HTML error page or an empty body). */
+export const text = (
+  body: string,
+  {
+    status = 200,
+    statusText = ``,
+  }: { status?: number; statusText?: string } = {},
+): Response => new Response(body, { status, statusText });
+
 /** Build a JSON `Response`. */
 export const json = (
   data: unknown,

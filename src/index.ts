@@ -1,5 +1,8 @@
 /* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
-/* global RequestInit */
+
+import { AirtableError } from './airtable-error.js';
+
+export { AirtableError } from './airtable-error.js';
 
 export type AirtableClientOpts = {
   /** A string of at least 10 characters. */
@@ -44,12 +47,32 @@ export type AirtableRecord = {
   id: `rec${string}`;
 };
 
-export type AirtableResponse = {
-  data: AirtableRecord;
-  ok: boolean;
-  status: number;
-  statusText: string;
-};
+/**
+ * The result of `createRecord`, `getRecord`, & `updateRecord`.
+ *
+ * These methods resolve (rather than throw) for non-2xx HTTP responses.
+ * Check `ok` before reading `data`:
+ * - `ok: true`  -> `data` is the Airtable record.
+ * - `ok: false` -> `data` is the parsed error body (or raw text, or `null`).
+ */
+export type AirtableResponse =
+  | {
+      data: AirtableRecord;
+      ok: true;
+      status: number;
+      statusText: string;
+    }
+  | {
+      /**
+       * Airtable's error body: usually `{ error: { type, message } }` or
+       * `{ error: "NOT_FOUND" }`. Raw text if the body isn't JSON,
+       * or `null` if it's empty.
+       */
+      data: unknown;
+      ok: false;
+      status: number;
+      statusText: string;
+    };
 
 export type CreateRecordOpts = {
   fields: FieldsObj;
@@ -157,6 +180,19 @@ export const UpsertResults = {
 
 export type UpsertResult = keyof typeof UpsertResults;
 
+type HttpMethod = `DELETE` | `GET` | `PATCH` | `POST` | `PUT`;
+
+/** A fetch `Response`, reduced to its status & its (tolerantly) parsed body. */
+type RawResponse = {
+  body: unknown;
+  ok: boolean;
+  status: number;
+  statusText: string;
+};
+
+/** The parts of a record that `listRecords` responses are required to include. */
+type ListedRecord = Pick<AirtableRecord, `fields` | `id`>;
+
 /**
  * @see https://github.com/ensembleblock/airtable
  */
@@ -263,24 +299,13 @@ export class AirtableClient {
       );
     }
 
-    const createRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}`;
-    const body = JSON.stringify({ fields });
-
-    await this.throttleIfNeeded();
-    this.setLastRequestAt();
-
-    const init: RequestInit = {
-      body,
-      cache: `no-store`,
-      headers: this.headers,
+    const res = await this.request({
+      body: { fields },
       method: `POST`,
-    };
+      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}`,
+    });
 
-    const res: Response = await this.fetch(createRecordUrl, init);
-
-    const data: AirtableRecord = await res.json();
-
-    return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+    return toRecordResponse(`createRecord`, res);
   }
 
   /**
@@ -471,7 +496,7 @@ export class AirtableClient {
     }
 
     const listRecordsUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/listRecords`;
-    const aggregateResponses: AirtableRecord[][] = [];
+    const aggregateResponses: ListedRecord[][] = [];
 
     let numRequestsMade = 0;
     let offset: string | null = null;
@@ -497,61 +522,54 @@ export class AirtableClient {
         payload.offset = offset;
       }
 
-      const body = JSON.stringify(payload);
-
-      await this.throttleIfNeeded();
-      this.setLastRequestAt();
-
-      const init: RequestInit = {
-        body,
-        cache: `no-store`,
-        headers: this.headers,
+      const res = await this.request({
+        body: payload,
 
         // We use a POST instead of a GET request with query parameters.
         // It's more ergonomic than encoding query parameters,
         // especially when using `filterByFormula`.
         method: `POST`,
-      };
-
-      const res: Response = await this.fetch(listRecordsUrl, init);
+        url: listRecordsUrl,
+      });
 
       numRequestsMade += 1;
 
       if (!res.ok) {
-        throw new Error(
-          `Airtable findMany failed with HTTP status ${res.status} ${res.statusText}`,
+        throw toAirtableError(`findMany`, res);
+      }
+
+      // Never interpret a malformed page as "no records":
+      // `upsertRecord` would treat that as "not found" & create a duplicate.
+      const page = parseListRecordsPage(res.body);
+
+      if (!page) {
+        throw malformedResponseError(
+          `findMany`,
+          res,
+          `{ records: [...], offset?: string }`,
         );
       }
 
-      const data: {
-        offset?: string;
-        records: AirtableRecord[];
-      } = await res.json();
-
-      if (Array.isArray(data.records) && data.records.length > 0) {
-        aggregateResponses.push(data.records);
+      if (page.records.length > 0) {
+        aggregateResponses.push(page.records);
       }
 
-      if (data.offset && typeof data.offset === `string`) {
-        ({ offset } = data);
-      } else {
-        // No more records to fetch.
-        offset = null;
-      }
+      // `null` when there are no more records to fetch.
+      ({ offset } = page);
     }
 
     /**
      * Basic mapping function to extract fields from a record.
      * Drops the outer `id` & `createdTime` fields.
      */
-    const basicMapFn = (record: AirtableRecord): FieldsObj => record.fields;
+    const basicMapFn = (record: ListedRecord): FieldsObj => record.fields;
 
     /**
      * Complex mapping function to include the Airtable ID as `_airtableId`
      * along with the record's fields.
      */
     const complexMapFn = (
-      record: AirtableRecord,
+      record: ListedRecord,
     ): FieldsObj & { _airtableId: `rec${string}` } => ({
       _airtableId: record.id,
       ...record.fields,
@@ -596,22 +614,50 @@ export class AirtableClient {
       );
     }
 
-    const getRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
+    const res = await this.request({
+      method: `GET`,
+      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`,
+    });
 
+    return toRecordResponse(`getRecord`, res);
+  }
+
+  /**
+   * Make one throttled request & parse its body.
+   * Resolves for any HTTP status; callers decide how to treat non-2xx.
+   * Network & body-read failures reject with the underlying error.
+   */
+  private async request({
+    body,
+    method,
+    url,
+  }: {
+    body?: unknown;
+    method: HttpMethod;
+    url: string;
+  }): Promise<RawResponse> {
     await this.throttleIfNeeded();
     this.setLastRequestAt();
 
     const init: RequestInit = {
       cache: `no-store`,
       headers: this.headers,
-      method: `GET`,
+      method,
     };
 
-    const res: Response = await this.fetch(getRecordUrl, init);
+    if (typeof body !== `undefined`) {
+      init.body = JSON.stringify(body);
+    }
 
-    const data: AirtableRecord = await res.json();
+    const res: Response = await this.fetch(url, init);
+    const text = await res.text();
 
-    return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+    return {
+      body: parseResponseText(text),
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+    };
   }
 
   private setLastRequestAt(): void {
@@ -690,24 +736,13 @@ export class AirtableClient {
       );
     }
 
-    const updateRecordUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`;
-    const body = JSON.stringify({ fields });
+    const res = await this.request({
+      body: { fields },
+      method: method.toUpperCase() as `PATCH` | `PUT`,
+      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`,
+    });
 
-    await this.throttleIfNeeded();
-    this.setLastRequestAt();
-
-    const init: RequestInit = {
-      body,
-      cache: `no-store`,
-      headers: this.headers,
-      method: method.toUpperCase(),
-    };
-
-    const res: Response = await this.fetch(updateRecordUrl, init);
-
-    const data: AirtableRecord = await res.json();
-
-    return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+    return toRecordResponse(`updateRecord`, res);
   }
 
   /**
@@ -782,17 +817,17 @@ export class AirtableClient {
       const createRecordRes: AirtableResponse =
         await this.createRecord(createRecordOpts);
 
-      const createdRecord: AirtableRecord = createRecordRes.data;
-      const _airtableId = createdRecord.id;
-
-      if (!isValidRecordId(_airtableId)) {
-        throw new TypeError(
-          `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the created record`,
+      // Surface Airtable's own error (e.g. a 422 for an invalid field value)
+      // rather than failing later while looking for the new record's ID.
+      if (!createRecordRes.ok) {
+        throw toAirtableError(
+          `upsertRecord (create)`,
+          envelopeToRaw(createRecordRes),
         );
       }
 
       return {
-        _airtableId,
+        _airtableId: createRecordRes.data.id,
         upsertResult: UpsertResults.RECORD_CREATED,
       };
     }
@@ -850,28 +885,176 @@ export class AirtableClient {
     const updateRecordRes: AirtableResponse =
       await this.updateRecord(updateRecordOpts);
 
-    const updatedRecord: AirtableRecord = updateRecordRes.data;
-
-    if (!isValidRecordId(updatedRecord.id)) {
-      throw new Error(
-        // ???
-        `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the updated record`,
+    // Previously, a failed update surfaced only as a cryptic "failed to
+    // retrieve a valid '_airtableId'" error. Report Airtable's error instead.
+    if (!updateRecordRes.ok) {
+      throw toAirtableError(
+        `upsertRecord (update)`,
+        envelopeToRaw(updateRecordRes),
       );
     }
 
     return {
-      _airtableId: updatedRecord.id,
+      _airtableId: updateRecordRes.data.id,
       upsertResult: UpsertResults.RECORD_UPDATED,
     };
   }
 }
 
-function isNonEmptyStr(str: string): str is string {
+function isNonEmptyStr(str: unknown): str is string {
   return typeof str === `string` && str.length > 0;
 }
 
-function isPlainObj(obj: unknown): obj is object {
+function isPlainObj(obj: unknown): obj is Record<string, unknown> {
   return typeof obj === `object` && obj !== null && !Array.isArray(obj);
+}
+
+/** A complete record, as returned by the get/create/update endpoints. */
+function isAirtableRecord(value: unknown): value is AirtableRecord {
+  return isListedRecord(value) && typeof value[`createdTime`] === `string`;
+}
+
+/** The record fields this client relies on: a valid `id` & a `fields` object. */
+function isListedRecord(
+  value: unknown,
+): value is ListedRecord & Record<string, unknown> {
+  return (
+    isPlainObj(value) &&
+    isValidRecordId(value[`id`]) &&
+    isPlainObj(value[`fields`])
+  );
+}
+
+/**
+ * Read Airtable's error `type` & `message` from an error body.
+ * Handles both `{ error: { type, message } }` & `{ error: "NOT_FOUND" }`.
+ */
+function extractAirtableError(body: unknown): {
+  message: string | null;
+  type: string | null;
+} {
+  const error = isPlainObj(body) ? body[`error`] : null;
+
+  if (typeof error === `string`) {
+    return { message: null, type: error };
+  }
+
+  if (isPlainObj(error)) {
+    return {
+      message: typeof error[`message`] === `string` ? error[`message`] : null,
+      type: typeof error[`type`] === `string` ? error[`type`] : null,
+    };
+  }
+
+  return { message: null, type: null };
+}
+
+/** Convert an `AirtableResponse` envelope back to a `RawResponse`. */
+function envelopeToRaw({
+  data,
+  ok,
+  status,
+  statusText,
+}: AirtableResponse): RawResponse {
+  return { body: data, ok, status, statusText };
+}
+
+/** An `AirtableError` for a 2xx response whose body isn't the expected shape. */
+function malformedResponseError(
+  operation: string,
+  res: RawResponse,
+  expected: string,
+): AirtableError {
+  return new AirtableError(
+    `Airtable ${operation} received a malformed response (expected ${expected})`,
+    {
+      body: res.body,
+      status: res.status,
+      statusText: res.statusText,
+      type: null,
+    },
+  );
+}
+
+/**
+ * Validate a `listRecords` page. Returns `null` when the body isn't
+ * `{ records: ListedRecord[], offset?: string }`.
+ */
+function parseListRecordsPage(
+  body: unknown,
+): { offset: string | null; records: ListedRecord[] } | null {
+  if (!isPlainObj(body)) {
+    return null;
+  }
+
+  const { offset, records } = body;
+
+  if (!Array.isArray(records) || !records.every(isListedRecord)) {
+    return null;
+  }
+
+  if (typeof offset === `undefined`) {
+    return { offset: null, records };
+  }
+
+  return isNonEmptyStr(offset) ? { offset, records } : null;
+}
+
+/** Parse a response body as JSON; fall back to raw text, or `null` if empty. */
+function parseResponseText(text: string): unknown {
+  if (text.trim() === ``) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+/** An `AirtableError` for a non-2xx response. */
+function toAirtableError(operation: string, res: RawResponse): AirtableError {
+  const { message, type } = extractAirtableError(res.body);
+
+  const details = [type, message].filter(Boolean).join(`: `);
+
+  const errMsg =
+    `Airtable ${operation} failed with HTTP status ${String(res.status)} ${res.statusText}`.trimEnd() +
+    (details ? ` (${details})` : ``);
+
+  return new AirtableError(errMsg, {
+    body: res.body,
+    status: res.status,
+    statusText: res.statusText,
+    type,
+  });
+}
+
+/**
+ * Build the `AirtableResponse` envelope for createRecord/getRecord/updateRecord.
+ * Non-2xx responses resolve with `ok: false`; a 2xx response must contain
+ * a valid record, or this throws rather than exposing it as a success.
+ */
+function toRecordResponse(
+  operation: string,
+  res: RawResponse,
+): AirtableResponse {
+  const { body, status, statusText } = res;
+
+  if (!res.ok) {
+    return { data: body, ok: false, status, statusText };
+  }
+
+  if (!isAirtableRecord(body)) {
+    throw malformedResponseError(
+      operation,
+      res,
+      `an Airtable record with 'id', 'createdTime', & 'fields'`,
+    );
+  }
+
+  return { data: body, ok: true, status, statusText };
 }
 
 function isValidRecordId(recordId: unknown): recordId is `rec${string}` {

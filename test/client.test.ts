@@ -7,6 +7,7 @@ import {
   baseId,
   createClient,
   json,
+  makeRecord,
   recordId,
   tableIdOrName,
 } from './helpers.js';
@@ -18,16 +19,14 @@ const expectedHeaders = {
 
 describe(`AirtableClient`, () => {
   it(`createRecord`, async () => {
-    const { client, requests } = createClient(
-      json({ createRecordResponse: true }),
-    );
+    const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
     const res = await client.createRecord({
       fields: { foo: `bar` },
       tableIdOrName,
     });
 
-    expect(res.data).toStrictEqual({ createRecordResponse: true });
+    expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(requests).toHaveLength(1);
 
     const [request] = requests;
@@ -143,13 +142,11 @@ describe(`AirtableClient`, () => {
   });
 
   it(`getRecord`, async () => {
-    const { client, requests } = createClient(
-      json({ getRecordResponse: true }),
-    );
+    const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
     const res = await client.getRecord({ recordId, tableIdOrName });
 
-    expect(res.data).toStrictEqual({ getRecordResponse: true });
+    expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(requests).toHaveLength(1);
 
     const [request] = requests;
@@ -163,9 +160,7 @@ describe(`AirtableClient`, () => {
   });
 
   it(`updateRecord`, async () => {
-    const { client, requests } = createClient(
-      json({ updateRecordResponse: true }),
-    );
+    const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
     const res = await client.updateRecord({
       fields: { foo: `bar` },
@@ -173,7 +168,7 @@ describe(`AirtableClient`, () => {
       tableIdOrName,
     });
 
-    expect(res.data).toStrictEqual({ updateRecordResponse: true });
+    expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(requests).toHaveLength(1);
 
     const [request] = requests;
@@ -196,12 +191,10 @@ describe(`AirtableClient 'fetch' option`, () => {
     const globalFetch = vi.fn();
     vi.stubGlobal(`fetch`, globalFetch);
 
-    const { client, requests } = createClient(
-      json({ getRecordResponse: true }),
-    );
+    const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
     const res = await client.getRecord({ recordId, tableIdOrName });
 
-    expect(res.data).toStrictEqual({ getRecordResponse: true });
+    expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(requests).toHaveLength(1);
     expect(globalFetch).not.toHaveBeenCalled();
   });
@@ -211,13 +204,13 @@ describe(`AirtableClient 'fetch' option`, () => {
     const client = new AirtableClient({ apiKey, baseId });
 
     const globalFetch = vi.fn(() =>
-      Promise.resolve(json({ getRecordResponse: true })),
+      Promise.resolve(json(makeRecord({ foo: `bar` }))),
     );
     vi.stubGlobal(`fetch`, globalFetch);
 
     const res = await client.getRecord({ recordId, tableIdOrName });
 
-    expect(res.data).toStrictEqual({ getRecordResponse: true });
+    expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(globalFetch).toHaveBeenCalledTimes(1);
   });
 
