@@ -16,11 +16,8 @@ export default defineConfig({
       provider: `v8`,
       reporter: [`text`, `html`],
 
-      // Branches aren't 100%: `Object.entries(where)[0] ?? []` keeps a
-      // fallback that `noUncheckedIndexedAccess` requires but that can't run
-      // after `where` is checked to have exactly one key.
       thresholds: {
-        branches: 99,
+        branches: 100,
         functions: 100,
         lines: 100,
         statements: 100,

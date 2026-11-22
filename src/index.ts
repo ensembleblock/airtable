@@ -233,13 +233,14 @@ export class AirtableClient {
       );
     }
 
-    if (Object.keys(where).length !== 1) {
+    const [entry, secondEntry] = Object.entries(where);
+    if (!entry || secondEntry) {
       throw new TypeError(
         `Airtable findFirst expected 'where' to have exactly one key-value pair`,
       );
     }
 
-    const [whereKey, whereValue] = Object.entries(where)[0] ?? [];
+    const [whereKey, whereValue] = entry;
 
     if (!whereKey || !whereValue) {
       throw new TypeError(
@@ -649,13 +650,14 @@ export class AirtableClient {
       );
     }
 
-    if (Object.keys(where).length !== 1) {
+    const [entry, secondEntry] = Object.entries(where);
+    if (!entry || secondEntry) {
       throw new TypeError(
         `Airtable upsertRecord expected 'where' to have exactly one key-value pair`,
       );
     }
 
-    const [whereKey, whereValue] = Object.entries(where)[0] ?? [];
+    const [whereKey, whereValue] = entry;
 
     if (!whereKey || !whereValue) {
       throw new TypeError(

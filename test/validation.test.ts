@@ -255,6 +255,11 @@ const upsertRecordCases: Case[] = [
     `Airtable upsertRecord expected 'where' to be a plain object`,
   ],
   [
+    `upsertRecord with an empty where`,
+    (c) => c.upsertRecord({ $set: {}, tableIdOrName, where: {} }),
+    `Airtable upsertRecord expected 'where' to have exactly one key-value pair`,
+  ],
+  [
     `upsertRecord with two where keys`,
     (c) =>
       c.upsertRecord({ $set: {}, tableIdOrName, where: { a: `1`, b: `2` } }),
