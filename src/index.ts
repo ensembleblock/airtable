@@ -931,6 +931,12 @@ export class AirtableClient {
    * prefix, including any proxy path, is used as given.
    */
   private tableUrl(tableIdOrName: string, segment?: string): string {
+    if (tableIdOrName === `.` || tableIdOrName === `..`) {
+      throw new TypeError(
+        `Use the table ID for a table named '${tableIdOrName}' because URLs normalize dot segments`,
+      );
+    }
+
     const url = `${this.baseUrl}/${encodeURIComponent(this.baseId)}/${encodeURIComponent(tableIdOrName)}`;
 
     return typeof segment === `undefined`

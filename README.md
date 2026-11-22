@@ -60,7 +60,7 @@ The token also needs access to the base itself. Airtable returns `403` for a mis
 | `baseUrl` | `string`       | Optional API root, without a trailing slash. Defaults to `https://api.airtable.com/v0`. A proxy path is fine (e.g. `https://proxy.example.com/airtable/v0`). |
 | `fetch`   | `typeof fetch` | Optional `fetch` implementation (instrumentation, tests). Defaults to the global `fetch`, looked up at request time.                                         |
 
-Table names are passed **raw**: `'Q1 / Q2 Leads'`, not `'Q1%20%2F%20Q2%20Leads'`. The client percent-encodes `tableIdOrName` and `recordId` itself. You can also pass a table ID (`tbl…`).
+Table names are passed **raw**: `'Q1 / Q2 Leads'`, not `'Q1%20%2F%20Q2%20Leads'`. The client percent-encodes `tableIdOrName` and `recordId` itself. Use the table ID (`tbl…`) for a table named exactly `.` or `..`, since URL parsers normalize those path segments.
 
 ### Records
 

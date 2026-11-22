@@ -54,6 +54,18 @@ describe(`URL construction`, () => {
     expect(requests[0]?.url).toBe(`${base}/My%2520Table/rec_mock_123456789`);
   });
 
+  it.each([`.`, `..`])(
+    `rejects the dot segment %s before sending a request`,
+    async (tableIdOrName) => {
+      const { client, requests } = createClient();
+
+      await expect(
+        client.deleteRecord({ recordId, tableIdOrName }),
+      ).rejects.toThrow(`Use the table ID`);
+      expect(requests).toHaveLength(0);
+    },
+  );
+
   it(`keeps a plain table name or table ID unchanged`, async () => {
     const { client, requests } = createClient(json(makeRecord()));
 
