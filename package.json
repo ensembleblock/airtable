@@ -46,7 +46,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "check": "npm run lint && npm run format && npm run typecheck && npm test",
+    "check": "npm run lint && npm run format && npm run typecheck && npm run test:coverage",
     "clean": "rm -rf dist node_modules",
     "clean:build": "rm -rf dist",
     "dev": "tsc --watch",
@@ -58,6 +58,7 @@
     "prepublishOnly": "npm run check",
     "release": "np",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:dev": "vitest",
     "typecheck": "tsc --noEmit && tsc -p test",
     "test:package": "scripts/test-package.sh"
@@ -67,6 +68,7 @@
     "@percuss.io/eslint-config-ericcarraway": "^9.0.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.1.1",
     "eslint": "^9.39.5",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-n": "^18.5.0",

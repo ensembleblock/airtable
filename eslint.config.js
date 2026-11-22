@@ -34,7 +34,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   // `*.cjs`: CommonJS config files (e.g. `.prettierrc.cjs`) & local scripts.
-  globalIgnores([`dist/`, `node_modules/`, `**/*.cjs`]),
+  globalIgnores([`coverage/`, `dist/`, `node_modules/`, `**/*.cjs`]),
 
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
@@ -75,8 +75,8 @@ export default defineConfig(
   },
 
   {
-    // ESLint requires a default export from its config file.
-    files: [`eslint.config.js`],
+    // ESLint & Vitest require a default export from their config files.
+    files: [`eslint.config.js`, `vitest.config.js`],
     rules: { 'import/no-default-export': `off` },
   },
 );

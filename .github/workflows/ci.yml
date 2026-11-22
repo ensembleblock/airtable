@@ -51,7 +51,8 @@ jobs:
       # `npm ci` runs the `prepare` lifecycle, which builds `dist`.
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # Fails if coverage drops below the thresholds in vitest.config.js.
+      - run: npm run test:coverage
 
   package:
     name: Pack & typecheck consumers (Node.js 24)
