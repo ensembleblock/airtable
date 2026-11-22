@@ -1,21 +1,36 @@
 {
   "name": "@ensembleblock/airtable",
+  "description": "Lightweight Airtable API client powered by fetch",
+  "keywords": [
+    "airtable",
+    "airtable-api",
+    "api-client",
+    "fetch",
+    "typescript"
+  ],
   "type": "module",
   "version": "0.0.11",
-  "repository": "ensembleblock/airtable",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ensembleblock/airtable.git"
+  },
   "homepage": "https://github.com/ensembleblock/airtable#readme",
+  "bugs": {
+    "url": "https://github.com/ensembleblock/airtable/issues"
+  },
   "license": "MIT",
   "author": {
     "name": "Eric L. Carraway",
     "url": "https://ensembleblock.com/"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
