@@ -1151,7 +1151,7 @@ function toRecordResponse(
 function isValidRecordId(recordId: unknown): recordId is `rec${string}` {
   return (
     typeof recordId === `string` &&
-    recordId.length > 10 &&
+    recordId.length >= 10 &&
     recordId.startsWith(`rec`)
   );
 }

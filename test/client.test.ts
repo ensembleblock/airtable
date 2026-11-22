@@ -225,3 +225,26 @@ describe(`AirtableClient 'fetch' option`, () => {
     ).toThrow(`AirtableClient expected 'fetch' to be a function when given`);
   });
 });
+
+describe(`recordId validation`, () => {
+  it(`accepts a 10-character record ID, as the error message promises`, async () => {
+    const { client, requests } = createClient(
+      json(makeRecord({}, `rec1234567`)),
+    );
+
+    await client.getRecord({ recordId: `rec1234567`, tableIdOrName });
+
+    expect(requests).toHaveLength(1);
+  });
+
+  it(`rejects a 9-character record ID before any request`, async () => {
+    const { client, requests } = createClient();
+
+    await expect(
+      client.getRecord({ recordId: `rec123456`, tableIdOrName }),
+    ).rejects.toThrow(
+      `Airtable getRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`,
+    );
+    expect(requests).toHaveLength(0);
+  });
+});
