@@ -133,7 +133,7 @@ describe(`AirtableResponse envelope (createRecord, getRecord, updateRecord)`, ()
             typeof body === `string` ? text(body) : json(body),
           );
 
-          const err = await catchAirtableError(call(client));
+          const err: AirtableError = await catchAirtableError(call(client));
 
           expect(err.status).toBe(200);
           expect(err.message).toContain(
@@ -167,7 +167,9 @@ describe(`AirtableError (findMany & findFirst)`, () => {
       json(forbidden, { status: 403, statusText: `Forbidden` }),
     );
 
-    const err = await catchAirtableError(client.findMany({ tableIdOrName }));
+    const err: AirtableError = await catchAirtableError(
+      client.findMany({ tableIdOrName }),
+    );
 
     expect(err.name).toBe(`AirtableError`);
     expect(err.status).toBe(403);
@@ -184,7 +186,9 @@ describe(`AirtableError (findMany & findFirst)`, () => {
       json({ error: `NOT_FOUND` }, { status: 404, statusText: `Not Found` }),
     );
 
-    const err = await catchAirtableError(client.findMany({ tableIdOrName }));
+    const err: AirtableError = await catchAirtableError(
+      client.findMany({ tableIdOrName }),
+    );
 
     expect(err.type).toBe(`NOT_FOUND`);
     expect(err.message).toBe(
@@ -201,7 +205,7 @@ describe(`AirtableError (findMany & findFirst)`, () => {
       text(``, { status: 503 }),
     );
 
-    const htmlErr = await catchAirtableError(
+    const htmlErr: AirtableError = await catchAirtableError(
       client.findMany({ tableIdOrName }),
     );
 
@@ -212,7 +216,7 @@ describe(`AirtableError (findMany & findFirst)`, () => {
       `Airtable findMany failed with HTTP status 502 Bad Gateway`,
     );
 
-    const emptyErr = await catchAirtableError(
+    const emptyErr: AirtableError = await catchAirtableError(
       client.findMany({ tableIdOrName }),
     );
 
@@ -236,7 +240,7 @@ describe(`AirtableError (findMany & findFirst)`, () => {
       ),
     );
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.findFirst({ tableIdOrName, where: { Name: `x` } }),
     );
 
@@ -260,7 +264,9 @@ describe(`AirtableError (findMany & findFirst)`, () => {
         typeof page === `string` ? text(page) : json(page),
       );
 
-      const err = await catchAirtableError(client.findMany({ tableIdOrName }));
+      const err: AirtableError = await catchAirtableError(
+        client.findMany({ tableIdOrName }),
+      );
 
       expect(err.status).toBe(200);
       expect(err.message).toContain(
@@ -295,7 +301,7 @@ describe(`upsertRecord: failed reads never cause a write`, () => {
   it(`rejects a malformed lookup page with zero mutation requests`, async () => {
     const { client, requests } = createClient(json({}));
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.upsertRecord({ $set, tableIdOrName, where }),
     );
 
@@ -309,7 +315,7 @@ describe(`upsertRecord: failed reads never cause a write`, () => {
       json(forbidden, { status: 403, statusText: `Forbidden` }),
     );
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.upsertRecord({ $set, tableIdOrName, where }),
     );
 
@@ -350,7 +356,7 @@ describe(`upsertRecord: failed reads never cause a write`, () => {
       json(invalid, { status: 422, statusText: `Unprocessable Entity` }),
     );
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.upsertRecord({ $set, tableIdOrName, where }),
     );
 
@@ -374,7 +380,7 @@ describe(`upsertRecord: failed reads never cause a write`, () => {
       json(invalid, { status: 422, statusText: `Unprocessable Entity` }),
     );
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.upsertRecord({ $set, tableIdOrName, where }),
     );
 

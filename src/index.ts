@@ -1,5 +1,3 @@
-/* eslint no-underscore-dangle: ["error", { "allow": ["_airtableId"] }] */
-
 import { isNonEmptyStr, isPlainObj, isValidRecordId } from './guards.js';
 import {
   buildEqualsFormula,
@@ -527,10 +525,11 @@ export class AirtableClient {
     }
 
     // Resolve the global `fetch` at request time (not construction time).
-    const res = await this.throttle.run(() =>
+    const res: Response = await this.throttle.run(() =>
       (this.fetchImpl ?? globalThis.fetch)(url, init),
     );
-    const text = await res.text();
+
+    const text: string = await res.text();
 
     return {
       body: parseResponseText(text),
@@ -610,7 +609,7 @@ export class AirtableClient {
       );
     }
 
-    const res = await this.request({
+    const res: RawResponse = await this.request({
       body: { fields },
       method: method.toUpperCase() as `PATCH` | `PUT`,
       url: this.tableUrl(tableIdOrName, recordId),
@@ -676,12 +675,15 @@ export class AirtableClient {
     // targets its real ID (never a field that happens to be named
     // `_airtableId`). Retrieve only the fields we might update; when `$set`
     // is empty, retrieve just the `where` field.
-    const foundRecord = await this.findFirstRecord(`upsertRecord`, {
-      fields: fieldsToRetrieve.length > 0 ? fieldsToRetrieve : [whereKey],
-      tableIdOrName,
-      whereKey,
-      whereValue,
-    });
+    const foundRecord: ListedRecord | null = await this.findFirstRecord(
+      `upsertRecord`,
+      {
+        fields: fieldsToRetrieve.length > 0 ? fieldsToRetrieve : [whereKey],
+        tableIdOrName,
+        whereKey,
+        whereValue,
+      },
+    );
 
     if (!foundRecord) {
       const createRecordOpts: CreateRecordOpts = {

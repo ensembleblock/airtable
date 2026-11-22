@@ -40,13 +40,18 @@ export class RequestThrottle {
    * the next queued task still gets its turn.
    */
   public async run<T>(start: () => Promise<T>): Promise<T> {
-    const started = this.startGate.then(async () => {
-      const nextStart = this.lastStartedAt + this.minMillisBetweenStarts;
+    const started: Promise<{
+      result: Promise<T>;
+    }> = this.startGate.then(async () => {
+      const nextStart: number =
+        this.lastStartedAt + this.minMillisBetweenStarts;
+
       while (performance.now() < nextStart) {
         await sleep(Math.ceil(nextStart - performance.now()));
       }
 
       this.lastStartedAt = performance.now();
+
       // Wrap the result so the next turn waits only for `start` to be invoked.
       return { result: start() };
     });
@@ -61,7 +66,9 @@ export class RequestThrottle {
       },
     );
 
-    return (await started).result;
+    const result: Promise<T> = (await started).result;
+
+    return result;
   }
 }
 

@@ -231,6 +231,7 @@ describe(`upsertRecord update scope`, () => {
 
   it(`compares compound values and sends only JSON-visible changes`, async () => {
     const date = new Date(`2026-11-21T00:00:00.000Z`);
+
     const { client, requests } = createClient(
       json({
         records: [

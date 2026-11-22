@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { FindFirstOpts, FindManyOpts } from '../src/index.js';
+import type {
+  AirtableResponse,
+  FindFirstOpts,
+  FindManyOpts,
+} from '../src/index.js';
 import { AirtableClient } from '../src/index.js';
 import {
   apiKey,
@@ -21,7 +25,7 @@ describe(`AirtableClient`, () => {
   it(`createRecord`, async () => {
     const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
-    const res = await client.createRecord({
+    const res: AirtableResponse = await client.createRecord({
       fields: { foo: `bar` },
       tableIdOrName,
     });
@@ -144,7 +148,10 @@ describe(`AirtableClient`, () => {
   it(`getRecord`, async () => {
     const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
-    const res = await client.getRecord({ recordId, tableIdOrName });
+    const res: AirtableResponse = await client.getRecord({
+      recordId,
+      tableIdOrName,
+    });
 
     expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(requests).toHaveLength(1);
@@ -162,7 +169,7 @@ describe(`AirtableClient`, () => {
   it(`updateRecord`, async () => {
     const { client, requests } = createClient(json(makeRecord({ foo: `bar` })));
 
-    const res = await client.updateRecord({
+    const res: AirtableResponse = await client.updateRecord({
       fields: { foo: `bar` },
       recordId,
       tableIdOrName,
@@ -208,7 +215,10 @@ describe(`AirtableClient 'fetch' option`, () => {
     );
     vi.stubGlobal(`fetch`, globalFetch);
 
-    const res = await client.getRecord({ recordId, tableIdOrName });
+    const res: AirtableResponse = await client.getRecord({
+      recordId,
+      tableIdOrName,
+    });
 
     expect(res.data).toStrictEqual(makeRecord({ foo: `bar` }));
     expect(globalFetch).toHaveBeenCalledTimes(1);
@@ -245,6 +255,7 @@ describe(`recordId validation`, () => {
     ).rejects.toThrow(
       `Airtable getRecord expected 'recordId' to be string of at least 10 characters starting with 'rec'`,
     );
+
     expect(requests).toHaveLength(0);
   });
 });

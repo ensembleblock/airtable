@@ -178,7 +178,7 @@ export function toAirtableError(
 ): AirtableError {
   const { message, type } = extractAirtableError(res.body);
 
-  const details = [type, message].filter(Boolean).join(`: `);
+  const details: string = [type, message].filter(Boolean).join(`: `);
 
   const errMsg =
     `Airtable ${operation} failed with HTTP status ${String(res.status)} ${res.statusText}`.trimEnd() +

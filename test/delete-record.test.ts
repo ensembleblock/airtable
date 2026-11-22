@@ -102,7 +102,7 @@ describe(`deleteRecord`, () => {
     async (status, statusText, body, type) => {
       const { client } = createClient(json(body, { status, statusText }));
 
-      const err = await catchAirtableError(
+      const err: AirtableError = await catchAirtableError(
         client.deleteRecord({ recordId, tableIdOrName }),
       );
 
@@ -149,7 +149,7 @@ describe(`deleteRecord`, () => {
       }),
     );
 
-    const err = await catchAirtableError(
+    const err: AirtableError = await catchAirtableError(
       client.deleteRecord({ recordId, tableIdOrName }),
     );
 
@@ -175,7 +175,7 @@ describe(`deleteRecord`, () => {
     async ({ response }) => {
       const { client } = createClient(response());
 
-      const err = await catchAirtableError(
+      const err: AirtableError = await catchAirtableError(
         client.deleteRecord({ recordId, tableIdOrName }),
       );
 

@@ -13,6 +13,7 @@ export const tableIdOrName = `table_mock`;
 export type RecordedRequest = {
   /** The parsed JSON request body, or `null` when no body was sent. */
   body: unknown;
+
   headers: Record<string, string>;
   method: string;
   url: string;
@@ -72,6 +73,7 @@ export const createMockFetch = (...replies: MockReply[]) => {
     const request: RecordedRequest = {
       body:
         typeof rawBody === `string` ? (JSON.parse(rawBody) as unknown) : null,
+
       headers: Object.fromEntries(new Headers(init.headers).entries()),
       method: init.method ?? `GET`,
       url: input instanceof Request ? input.url : String(input),
@@ -79,7 +81,7 @@ export const createMockFetch = (...replies: MockReply[]) => {
 
     requests.push(request);
 
-    const reply = queue.shift();
+    const reply: MockReply | undefined = queue.shift();
 
     if (!reply) {
       throw new Error(

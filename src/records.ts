@@ -44,6 +44,7 @@ export function fieldNeedsUpdate(
   value: FieldsObj[string],
 ): boolean {
   const existing = fields[key];
+
   if (typeof value === `undefined` || existing === value) {
     return false;
   }

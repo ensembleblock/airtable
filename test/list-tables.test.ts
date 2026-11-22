@@ -111,8 +111,11 @@ describe(`listTables`, () => {
   it(`gives typed access to tables, fields, and views`, async () => {
     const { client } = createClient(json(schema()));
 
-    const tables = await client.listTables();
-    const apartments = tables.find((table) => table.name === `Apartments`);
+    const tables: AirtableTable[] = await client.listTables();
+
+    const apartments: AirtableTable | undefined = tables.find(
+      (table) => table.name === `Apartments`,
+    );
 
     expect(apartments?.fields.map((field) => field.name)).toStrictEqual([
       `Name`,
@@ -211,7 +214,7 @@ describe(`listTables`, () => {
   ])(`throws AirtableError for HTTP %i`, async (status, body, type) => {
     const { client } = createClient(json(body, { status }));
 
-    const err = await catchAirtableError(client.listTables());
+    const err: AirtableError = await catchAirtableError(client.listTables());
 
     expect(err.status).toBe(status);
     expect(err.type).toBe(type);
@@ -290,7 +293,7 @@ describe(`listTables`, () => {
     async ({ response }) => {
       const { client } = createClient(response());
 
-      const err = await catchAirtableError(client.listTables());
+      const err: AirtableError = await catchAirtableError(client.listTables());
 
       expect(err.status).toBe(200);
       expect(err.message).toContain(
