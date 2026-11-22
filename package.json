@@ -59,7 +59,8 @@
     "release": "np",
     "test": "vitest run",
     "test:dev": "vitest",
-    "typecheck": "tsc --noEmit && tsc -p test"
+    "typecheck": "tsc --noEmit && tsc -p test",
+    "test:package": "scripts/test-package.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
