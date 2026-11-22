@@ -66,7 +66,9 @@ jobs:
           cache: npm
       - run: npm ci
       # `npm pack` runs the `prepare` build from a clean checkout (dist/ is untracked).
-      - run: npm pack --pack-destination "$RUNNER_TEMP/package"
+      - run: |
+          mkdir -p "$RUNNER_TEMP/package"
+          npm pack --pack-destination "$RUNNER_TEMP/package"
       - run: scripts/test-package.sh --tarball "$RUNNER_TEMP"/package/*.tgz
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
