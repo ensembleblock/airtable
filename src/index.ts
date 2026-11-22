@@ -89,6 +89,8 @@ export type FindManyOpts = {
   /**
    * The maximum total number of records to return across all (paginated) requests.
    * Can be used as an optimization in "find one" scenarios.
+   *
+   * Works like a `limit` clause commonly used in database queries.
    */
   maxRecords?: number | null;
 
@@ -816,6 +818,7 @@ export class AirtableClient {
 
     if (!isValidRecordId(updatedRecord.id)) {
       throw new Error(
+        // ???
         `Airtable upsertRecord failed to retrieve a valid '_airtableId' from the updated record`,
       );
     }
