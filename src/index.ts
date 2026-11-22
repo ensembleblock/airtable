@@ -37,6 +37,69 @@ export type FieldsObj = Record<
   | undefined
 >;
 
+/**
+ * A field in a table's schema.
+ * @see https://airtable.com/developers/web/api/field-model
+ */
+export type AirtableField = {
+  description?: string;
+
+  /** Airtable field ID (begins with 'fld'). */
+  id: `fld${string}`;
+
+  name: string;
+
+  /**
+   * Type-specific options (e.g. choices for `singleSelect`, or
+   * `linkedTableId` for `multipleRecordLinks`). Left open-ended;
+   * see Airtable's field model reference for each type's options.
+   */
+  options?: Record<string, unknown>;
+
+  type: AirtableFieldType;
+};
+
+/**
+ * Airtable field types. Listed for autocompletion; any other string is
+ * accepted, so new field types don't break consumers.
+ * @see https://airtable.com/developers/web/api/field-model
+ */
+export type AirtableFieldType =
+  | `aiText`
+  | `autoNumber`
+  | `barcode`
+  | `button`
+  | `checkbox`
+  | `count`
+  | `createdBy`
+  | `createdTime`
+  | `currency`
+  | `date`
+  | `dateTime`
+  | `duration`
+  | `email`
+  | `externalSyncSource`
+  | `formula`
+  | `lastModifiedBy`
+  | `lastModifiedTime`
+  | `multilineText`
+  | `multipleAttachments`
+  | `multipleCollaborators`
+  | `multipleLookupValues`
+  | `multipleRecordLinks`
+  | `multipleSelects`
+  | `number`
+  | `percent`
+  | `phoneNumber`
+  | `rating`
+  | `richText`
+  | `rollup`
+  | `singleCollaborator`
+  | `singleLineText`
+  | `singleSelect`
+  | `url`
+  | (string & {});
+
 export type AirtableRecord = {
   /** A date timestamp in the ISO format. */
   createdTime: string;
@@ -73,6 +136,50 @@ export type AirtableResponse =
       status: number;
       statusText: string;
     };
+
+/**
+ * A table in a base's schema, as returned by `listTables()`.
+ * @see https://airtable.com/developers/web/api/get-base-schema
+ */
+export type AirtableTable = {
+  description?: string;
+
+  fields: AirtableField[];
+
+  /** Airtable table ID (begins with 'tbl'). */
+  id: `tbl${string}`;
+
+  name: string;
+
+  /** The ID of the table's primary field (begins with 'fld'). */
+  primaryFieldId: `fld${string}`;
+
+  views: AirtableView[];
+};
+
+/** A view in a table's schema. */
+export type AirtableView = {
+  /** Airtable view ID (begins with 'viw'). */
+  id: `viw${string}`;
+
+  name: string;
+
+  type: AirtableViewType;
+};
+
+/**
+ * Airtable view types. Listed for autocompletion; any other string is
+ * accepted, so new view types don't break consumers.
+ */
+export type AirtableViewType =
+  | `block`
+  | `calendar`
+  | `form`
+  | `gallery`
+  | `grid`
+  | `kanban`
+  | `timeline`
+  | (string & {});
 
 export type CreateRecordOpts = {
   fields: FieldsObj;
@@ -723,6 +830,45 @@ export class AirtableClient {
   }
 
   /**
+   * List the tables in this client's base, including each table's fields
+   * & views. (Airtable calls this endpoint "Get base schema".)
+   *
+   * Requires a token with the `schema.bases:read` scope that also has
+   * access to the base. Uses `{baseUrl}/meta/bases/{baseId}/tables`, so a
+   * custom `baseUrl` (e.g. a proxy) must also forward `/meta/` paths.
+   * @see https://airtable.com/developers/web/api/get-base-schema
+   *
+   * @returns Airtable's `tables` array. Objects are returned as received,
+   * so properties not described by the types are preserved.
+   * @throws {AirtableError} For any non-2xx response, e.g. `403` when the
+   * token lacks the `schema.bases:read` scope or access to the base, or
+   * `401` when it's invalid. Also thrown when a 2xx response isn't a valid
+   * table list.
+   */
+  public async listTables(): Promise<AirtableTable[]> {
+    const res = await this.request({
+      method: `GET`,
+      url: `${this.baseUrl}/meta/bases/${encodeURIComponent(this.baseId)}/tables`,
+    });
+
+    if (!res.ok) {
+      throw toAirtableError(`listTables`, res);
+    }
+
+    const tables = isPlainObj(res.body) ? res.body[`tables`] : null;
+
+    if (!Array.isArray(tables) || !tables.every(isAirtableTable)) {
+      throw malformedResponseError(
+        `listTables`,
+        res,
+        `{ tables: [{ id, name, primaryFieldId, fields, views }] }`,
+      );
+    }
+
+    return tables;
+  }
+
+  /**
    * Make one throttled request & parse its body.
    * Resolves for any HTTP status; callers decide how to treat non-2xx.
    * Network & body-read failures reject with the underlying error.
@@ -1062,6 +1208,55 @@ function buildEqualsFormula(
 /** A complete record, as returned by the get/create/update endpoints. */
 function isAirtableRecord(value: unknown): value is AirtableRecord {
   return isListedRecord(value) && typeof value[`createdTime`] === `string`;
+}
+
+/** A field's required schema properties (`options` is left open-ended). */
+function isAirtableField(value: unknown): value is AirtableField {
+  return (
+    isPlainObj(value) &&
+    isPrefixedId(value[`id`], `fld`) &&
+    typeof value[`name`] === `string` &&
+    typeof value[`type`] === `string` &&
+    (typeof value[`options`] === `undefined` || isPlainObj(value[`options`]))
+  );
+}
+
+/** A table's required schema properties, including its fields & views. */
+function isAirtableTable(value: unknown): value is AirtableTable {
+  if (!isPlainObj(value)) {
+    return false;
+  }
+
+  const { fields, views } = value;
+
+  return (
+    isPrefixedId(value[`id`], `tbl`) &&
+    typeof value[`name`] === `string` &&
+    isPrefixedId(value[`primaryFieldId`], `fld`) &&
+    Array.isArray(fields) &&
+    fields.every(isAirtableField) &&
+    Array.isArray(views) &&
+    views.every(isAirtableView)
+  );
+}
+
+/** A view's required schema properties. */
+function isAirtableView(value: unknown): value is AirtableView {
+  return (
+    isPlainObj(value) &&
+    isPrefixedId(value[`id`], `viw`) &&
+    typeof value[`name`] === `string` &&
+    typeof value[`type`] === `string`
+  );
+}
+
+/** A string ID with the expected Airtable prefix (e.g. 'tbl'). */
+function isPrefixedId(value: unknown, prefix: string): boolean {
+  return (
+    typeof value === `string` &&
+    value.length > prefix.length &&
+    value.startsWith(prefix)
+  );
 }
 
 /** The record fields this client relies on: a valid `id` & a `fields` object. */
