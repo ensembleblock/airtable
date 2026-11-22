@@ -153,7 +153,7 @@ const contact = await client.findFirst({
 
 - `where` must have exactly one key-value pair, and both the key and the value must be truthy.
 - The value is compared as a string. The client escapes quotes and backslashes, so values like `O'Brien` or `say "hi"` are safe.
-- Field names containing `{` or `}` can't be referenced in an Airtable formula and are rejected. Use the field ID (`fld…`) instead.
+- Use a field name without braces for structured lookups. Airtable requires field names in [filterByFormula](https://support.airtable.com/docs/airtable-web-api-using-filterbyformula-or-sort-parameters).
 
 #### `upsertRecord({ tableIdOrName, where, $set }): Promise<{ _airtableId, upsertResult }>`
 

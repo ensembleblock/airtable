@@ -1205,7 +1205,7 @@ function buildEqualsFormula(
 ): string {
   if (/[{}]/u.test(field)) {
     throw new TypeError(
-      `Airtable ${operation} cannot reference the field '${field}' in a formula ('{' & '}' are not supported in field names). Use the field ID instead.`,
+      `Airtable ${operation} cannot reference the field '${field}' in a formula ('{' & '}' are not supported in field names).`,
     );
   }
 

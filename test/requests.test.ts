@@ -116,7 +116,6 @@ describe(`formulas built from 'where'`, () => {
     [{ Name: `a"} OR TRUE() OR {x}="` }, `{Name}="a\\"} OR TRUE() OR {x}=\\""`],
     [{ 'Full Name (legal) / #1': `x` }, `{Full Name (legal) / #1}="x"`],
     [{ "Owner's E-mail": `a@b.co` }, `{Owner's E-mail}="a@b.co"`],
-    [{ fldAbc123: `x` }, `{fldAbc123}="x"`],
     [{ Age: 30 }, `{Age}="30"`],
     [{ Done: true }, `{Done}="true"`],
   ])(`%j -> %s`, async (where, expected) => {

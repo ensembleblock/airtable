@@ -22,7 +22,7 @@
   ```
 
 - **Table names and record IDs are percent-encoded by the client.** Names containing `/`, `#`, `?`, or `%` used to produce broken URLs. If you pre-encoded names, pass the raw name instead. Names with only spaces behave as before.
-- **`findFirst` & `upsertRecord` build `where` formulas safely.** Values are written as double-quoted Airtable string literals with `"` and `\` escaped. Values containing quotes previously broke the formula or could inject formula code. Field names containing `{` or `}` are rejected with a `TypeError`; use the field ID instead.
+- **`findFirst` & `upsertRecord` build `where` formulas safely.** Values are written as double-quoted Airtable string literals with `"` and `\` escaped. Values containing quotes previously broke the formula or could inject formula code. Field names containing `{` or `}` are rejected with a `TypeError`.
 
 ### Added
 
