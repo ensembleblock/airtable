@@ -60,6 +60,8 @@ package/dist/airtable-error.d.ts
 package/dist/airtable-error.js
 package/dist/index.d.ts
 package/dist/index.js
+package/dist/types.d.ts
+package/dist/types.js
 package/package.json"
 
 actual_files="$(tar -tzf "$tarball" | LC_ALL=C sort)"
