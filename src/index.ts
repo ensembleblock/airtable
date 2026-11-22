@@ -309,7 +309,7 @@ export class AirtableClient {
     const res = await this.request({
       body: { fields },
       method: `POST`,
-      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}`,
+      url: this.tableUrl(tableIdOrName),
     });
 
     return toRecordResponse(`createRecord`, res);
@@ -381,7 +381,7 @@ export class AirtableClient {
     }
 
     const opts: FindManyOpts = {
-      filterByFormula: `{${whereKey}}='${String(whereValue)}'`,
+      filterByFormula: buildEqualsFormula(`findFirst`, whereKey, whereValue),
       maxRecords: 1,
       tableIdOrName,
     };
@@ -502,7 +502,7 @@ export class AirtableClient {
       basePayload.maxRecords = maxRecords;
     }
 
-    const listRecordsUrl = `${this.baseUrl}/${this.baseId}/${tableIdOrName}/listRecords`;
+    const listRecordsUrl = this.tableUrl(tableIdOrName, `listRecords`);
     const aggregateResponses: ListedRecord[][] = [];
 
     let numRequestsMade = 0;
@@ -623,7 +623,7 @@ export class AirtableClient {
 
     const res = await this.request({
       method: `GET`,
-      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`,
+      url: this.tableUrl(tableIdOrName, recordId),
     });
 
     return toRecordResponse(`getRecord`, res);
@@ -664,6 +664,21 @@ export class AirtableClient {
       status: res.status,
       statusText: res.statusText,
     };
+  }
+
+  /**
+   * Build `{baseUrl}/{baseId}/{tableIdOrName}[/{segment}]`.
+   *
+   * `tableIdOrName` & `segment` are raw values (e.g. a table name with spaces
+   * or slashes) and are percent-encoded exactly once here. The `baseUrl`
+   * prefix, including any proxy path, is used as given.
+   */
+  private tableUrl(tableIdOrName: string, segment?: string): string {
+    const url = `${this.baseUrl}/${encodeURIComponent(this.baseId)}/${encodeURIComponent(tableIdOrName)}`;
+
+    return typeof segment === `undefined`
+      ? url
+      : `${url}/${encodeURIComponent(segment)}`;
   }
 
   /**
@@ -718,7 +733,7 @@ export class AirtableClient {
     const res = await this.request({
       body: { fields },
       method: method.toUpperCase() as `PATCH` | `PUT`,
-      url: `${this.baseUrl}/${this.baseId}/${tableIdOrName}/${recordId}`,
+      url: this.tableUrl(tableIdOrName, recordId),
     });
 
     return toRecordResponse(`updateRecord`, res);
@@ -922,6 +937,34 @@ function isNonEmptyStr(str: unknown): str is string {
 
 function isPlainObj(obj: unknown): obj is Record<string, unknown> {
   return typeof obj === `object` && obj !== null && !Array.isArray(obj);
+}
+
+/**
+ * Build an Airtable formula matching records whose `field` equals `value`:
+ * `{field}="value"`.
+ *
+ * - The value is written as a double-quoted string literal (the form
+ *   Airtable documents), with `"` escaped as `\"` & `\` escaped as `\\`.
+ *   Numbers & booleans are compared as strings, as before.
+ * - The field is referenced in braces. Airtable documents no escape for
+ *   `{` or `}` inside a field name, so such names are rejected rather than
+ *   producing a formula that could match the wrong records.
+ * @see https://support.airtable.com/docs/formula-field-reference
+ */
+function buildEqualsFormula(
+  operation: string,
+  field: string,
+  value: boolean | number | string,
+): string {
+  if (/[{}]/u.test(field)) {
+    throw new TypeError(
+      `Airtable ${operation} cannot reference the field '${field}' in a formula ('{' & '}' are not supported in field names). Use the field ID instead.`,
+    );
+  }
+
+  const escapedValue = String(value).replace(/["\\]/gu, (char) => `\\${char}`);
+
+  return `{${field}}="${escapedValue}"`;
 }
 
 /** A complete record, as returned by the get/create/update endpoints. */

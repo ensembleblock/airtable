@@ -65,7 +65,7 @@ describe(`AirtableClient`, () => {
 
     expect(request?.body).toStrictEqual({
       fields: [`foo`],
-      filterByFormula: `{foo}='bar'`,
+      filterByFormula: `{foo}="bar"`,
       maxRecords: 1,
     });
     expect(request?.headers).toStrictEqual(expectedHeaders);
