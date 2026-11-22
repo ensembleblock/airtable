@@ -189,6 +189,44 @@ describe(`upsertRecord update scope`, () => {
     expect(requests[1]?.body).toStrictEqual({ fields: { Age: 31 } });
   });
 
+  it(`compares compound values and sends only JSON-visible changes`, async () => {
+    const date = new Date(`2026-11-21T00:00:00.000Z`);
+    const { client, requests } = createClient(
+      json({
+        records: [
+          rec(1, {
+            Contact: Object.fromEntries([
+              [`b`, `2`],
+              [`a`, `1`],
+            ]),
+            Name: `keep`,
+            Tags: [`A`, `B`],
+            When: date.toISOString(),
+          }),
+        ],
+      }),
+      json(makeRecord()),
+    );
+
+    await client.upsertRecord({
+      $set: {
+        [`__proto__`]: `custom field`,
+        Changed: [`C`],
+        Contact: { a: `1`, b: `2` },
+        // eslint-disable-next-line no-undefined -- callers may explicitly omit a value
+        Name: undefined,
+        Tags: [`A`, `B`],
+        When: date,
+      },
+      tableIdOrName,
+      where,
+    });
+
+    expect(requests[1]?.body).toStrictEqual({
+      fields: { [`__proto__`]: `custom field`, Changed: [`C`] },
+    });
+  });
+
   it(`makes no write when nothing changed`, async () => {
     const { client, requests } = createClient(existing());
 

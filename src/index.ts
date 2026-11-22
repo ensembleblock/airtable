@@ -1071,33 +1071,11 @@ export class AirtableClient {
 
     const { fields: existingFields, id: _airtableId } = foundRecord;
 
-    const fieldsToUpdate: FieldsObj = {};
-
-    for (const [key, valueToSet] of Object.entries($set)) {
-      if (existingFields[key] === valueToSet) {
-        // The field is already up-to-date.
-        continue;
-      }
-
-      if (typeof existingFields[key] === `undefined`) {
-        // The Airtable API does not return any "empty" fields
-        // (e.g. "", [], or false) in the record.
-        const updateToMakeIsEmpty =
-          valueToSet === `` ||
-          valueToSet === false ||
-          valueToSet === null ||
-          typeof valueToSet === `undefined` ||
-          (Array.isArray(valueToSet) && valueToSet.length === 0);
-
-        if (updateToMakeIsEmpty) {
-          // The field is empty on in the existing Airtable record
-          // and the new value is also empty.
-          continue;
-        }
-      }
-
-      fieldsToUpdate[key] = valueToSet;
-    }
+    const fieldsToUpdate = Object.fromEntries(
+      Object.entries($set).filter(([key, value]) =>
+        fieldNeedsUpdate(existingFields, key, value),
+      ),
+    );
 
     if (Object.keys(fieldsToUpdate).length === 0) {
       // No fields need to be updated.
@@ -1167,6 +1145,49 @@ export class AirtableClient {
 
     await turn;
   }
+}
+
+/** Compare the supported field values as they are sent over JSON. */
+function fieldNeedsUpdate(
+  fields: FieldsObj,
+  key: string,
+  value: FieldsObj[string],
+): boolean {
+  const existing = fields[key];
+  if (typeof value === `undefined` || existing === value) {
+    return false;
+  }
+
+  const next = value instanceof Date ? value.toJSON() : value;
+
+  if (!Object.hasOwn(fields, key)) {
+    // Airtable omits empty cells. Zero is a meaningful numeric value.
+    return !(
+      next === null ||
+      next === false ||
+      next === `` ||
+      (Array.isArray(next) && next.length === 0)
+    );
+  }
+
+  if (Array.isArray(next) && Array.isArray(existing)) {
+    return (
+      next.length !== existing.length ||
+      next.some((entry, i) => entry !== existing[i])
+    );
+  }
+
+  if (isPlainObj(next) && isPlainObj(existing)) {
+    return (
+      Object.keys(next).length !== Object.keys(existing).length ||
+      Object.entries(next).some(
+        ([property, entry]) =>
+          !Object.hasOwn(existing, property) || existing[property] !== entry,
+      )
+    );
+  }
+
+  return existing !== next;
 }
 
 function isNonEmptyStr(str: unknown): str is string {
