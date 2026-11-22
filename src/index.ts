@@ -17,6 +17,7 @@ import {
   toAirtableError,
   toRecordResponse,
 } from './responses.js';
+import { RequestThrottle } from './throttle.js';
 import type {
   AirtableClientOpts,
   AirtableResponse,
@@ -52,18 +53,15 @@ export class AirtableClient {
 
   private headers: Record<string, string> = {};
 
-  /** When this client's most recent request actually started (monotonic milliseconds). */
-  private lastRequestStartedAt = Number.NEGATIVE_INFINITY;
-
-  /** The Airtable API is limited to 5 requests per second per base. */
-  private minMillisBetweenRequests = 200;
-
   /**
-   * Settles once the most recently queued request has started.
-   * Each request waits on its predecessor's *start*, never its response,
-   * so slow responses don't hold up later requests.
+   * The Airtable API allows 5 requests per second per base, so request
+   * *starts* are spaced at least 200 ms apart (see `RequestThrottle`).
+   *
+   * Throttling is per client instance: separate clients, processes, or other
+   * users of the same base or token are not coordinated.
+   * @see https://airtable.com/developers/web/api/rate-limits
    */
-  private requestStartGate: Promise<void> = Promise.resolve();
+  private throttle = new RequestThrottle(200);
 
   /**
    * Constructs an instance of the AirtableClient.
@@ -528,7 +526,10 @@ export class AirtableClient {
       init.body = JSON.stringify(body);
     }
 
-    const res = await this.startRequest(url, init);
+    // Resolve the global `fetch` at request time (not construction time).
+    const res = await this.throttle.run(() =>
+      (this.fetchImpl ?? globalThis.fetch)(url, init),
+    );
     const text = await res.text();
 
     return {
@@ -537,49 +538,6 @@ export class AirtableClient {
       status: res.status,
       statusText: res.statusText,
     };
-  }
-
-  /**
-   * Start a request when this client has a free slot.
-   *
-   * The Airtable API allows 5 requests per second per base, so request
-   * *starts* are spaced at least `minMillisBetweenRequests` apart. Callers are
-   * queued in call order. The gap is measured from the previous request's
-   * actual start, after any sleep, so timers that fire late together (e.g.
-   * after the event loop was blocked) still can't start requests in a burst.
-   *
-   * Throttling is per client instance: separate clients, processes, or other
-   * users of the same base or token are not coordinated.
-   * @see https://airtable.com/developers/web/api/rate-limits
-   */
-  private async startRequest(
-    url: string,
-    init: RequestInit,
-  ): Promise<Response> {
-    const started = this.requestStartGate.then(async () => {
-      const nextStart =
-        this.lastRequestStartedAt + this.minMillisBetweenRequests;
-      while (performance.now() < nextStart) {
-        await sleep(Math.ceil(nextStart - performance.now()));
-      }
-
-      const fetchFn = this.fetchImpl ?? globalThis.fetch;
-      this.lastRequestStartedAt = performance.now();
-      // Wrap the promise so the next turn waits only for fetch to be invoked.
-      return { response: fetchFn(url, init) };
-    });
-
-    // Even a synchronously throwing custom fetch must release the next caller.
-    this.requestStartGate = started.then(
-      () => {
-        /* The request started. */
-      },
-      () => {
-        /* A synchronous fetch error belongs to its caller. */
-      },
-    );
-
-    return (await started).response;
   }
 
   /**
@@ -792,14 +750,4 @@ export class AirtableClient {
       upsertResult: UpsertResults.RECORD_UPDATED,
     };
   }
-}
-
-/**
- * Sleep for the specified number of milliseconds.
- * We use this to throttle our API requests.
- */
-function sleep(millis: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, millis);
-  });
 }

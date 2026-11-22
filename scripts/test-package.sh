@@ -66,6 +66,8 @@ package/dist/records.d.ts
 package/dist/records.js
 package/dist/responses.d.ts
 package/dist/responses.js
+package/dist/throttle.d.ts
+package/dist/throttle.js
 package/dist/types.d.ts
 package/dist/types.js
 package/package.json"
