@@ -13,6 +13,13 @@ export type AirtableClientOpts = {
    * Defaults to "https://api.airtable.com/v0".
    */
   baseUrl?: string;
+
+  /**
+   * Optionally provide a `fetch` implementation (for example, to add
+   * instrumentation or to stub requests in tests).
+   * Defaults to the global `fetch`, resolved at request time.
+   */
+  fetch?: typeof fetch;
 };
 
 export type FieldsObj = Record<
@@ -158,6 +165,9 @@ export class AirtableClient {
 
   private baseUrl = `https://api.airtable.com/v0`;
 
+  /** A caller-provided `fetch`, or `null` to use the global `fetch`. */
+  private fetchImpl: typeof fetch | null = null;
+
   private headers: Record<string, string> = {};
 
   /** Timestamp of the last request (epoch millis). */
@@ -174,8 +184,15 @@ export class AirtableClient {
    * @param {string} param0.baseId - The unique identifier for the base (begins with 'app').
    * @param {string} [param0.baseUrl] - An optional API base URL (without a trailing slash).
    * Defaults to the standard Airtable API URL.
+   * @param {Function} [param0.fetch] - An optional `fetch` implementation.
+   * Defaults to the global `fetch`.
    */
-  constructor({ apiKey, baseId, baseUrl }: AirtableClientOpts) {
+  constructor({
+    apiKey,
+    baseId,
+    baseUrl,
+    fetch: fetchImpl,
+  }: AirtableClientOpts) {
     if (typeof apiKey !== `string` || apiKey.length < 10) {
       throw new TypeError(
         `AirtableClient expected 'apiKey' to be string of at least 10 characters`,
@@ -207,6 +224,16 @@ export class AirtableClient {
       }
 
       this.baseUrl = baseUrl;
+    }
+
+    if (typeof fetchImpl !== `undefined`) {
+      if (typeof fetchImpl !== `function`) {
+        throw new TypeError(
+          `AirtableClient expected 'fetch' to be a function when given`,
+        );
+      }
+
+      this.fetchImpl = fetchImpl;
     }
   }
 
@@ -249,11 +276,23 @@ export class AirtableClient {
       method: `POST`,
     };
 
-    const res: Response = await fetch(createRecordUrl, init);
+    const res: Response = await this.fetch(createRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+  }
+
+  /**
+   * Calls the caller-provided `fetch` if one was given, otherwise the global
+   * `fetch` (looked up per request, so later stubs/polyfills are honored).
+   * Called as a plain function so implementations that depend on their
+   * receiver (e.g. a browser's `window.fetch`) keep working.
+   */
+  private async fetch(url: string, init: RequestInit): Promise<Response> {
+    const fetchFn = this.fetchImpl ?? globalThis.fetch;
+
+    return fetchFn(url, init);
   }
 
   /**
@@ -474,7 +513,7 @@ export class AirtableClient {
         method: `POST`,
       };
 
-      const res: Response = await fetch(listRecordsUrl, init);
+      const res: Response = await this.fetch(listRecordsUrl, init);
 
       numRequestsMade += 1;
 
@@ -568,7 +607,7 @@ export class AirtableClient {
       method: `GET`,
     };
 
-    const res: Response = await fetch(getRecordUrl, init);
+    const res: Response = await this.fetch(getRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 
@@ -664,7 +703,7 @@ export class AirtableClient {
       method: method.toUpperCase(),
     };
 
-    const res: Response = await fetch(updateRecordUrl, init);
+    const res: Response = await this.fetch(updateRecordUrl, init);
 
     const data: AirtableRecord = await res.json();
 

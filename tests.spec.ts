@@ -228,3 +228,40 @@ describe(`AirtableClient`, () => {
     );
   });
 });
+
+describe(`AirtableClient 'fetch' option`, () => {
+  it(`uses the injected fetch instead of the global fetch`, async () => {
+    fetchMock.resetMocks();
+
+    const calls: [string, RequestInit][] = [];
+
+    const injectedFetch: typeof fetch = (input, init) => {
+      calls.push([String(input), init ?? {}]);
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ getRecordResponse: true })),
+      );
+    };
+
+    const client = new AirtableClient({ apiKey, baseId, fetch: injectedFetch });
+    const res = await client.getRecord({ recordId, tableIdOrName });
+
+    expect(res.data).toStrictEqual({ getRecordResponse: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toBe(
+      `https://api.airtable.com/v0/app_mock_123456789/table_mock/rec_mock_123456789`,
+    );
+    expect(fetchMock.requests()).toHaveLength(0);
+  });
+
+  it(`rejects a non-function 'fetch' option`, () => {
+    expect(
+      () =>
+        new AirtableClient({
+          apiKey,
+          baseId,
+          fetch: `nope` as unknown as typeof fetch,
+        }),
+    ).toThrow(`AirtableClient expected 'fetch' to be a function when given`);
+  });
+});
