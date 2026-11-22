@@ -1,21 +1,36 @@
 {
   "name": "@ensembleblock/airtable",
+  "description": "Lightweight Airtable API client powered by fetch",
+  "keywords": [
+    "airtable",
+    "airtable-api",
+    "api-client",
+    "fetch",
+    "typescript"
+  ],
   "type": "module",
   "version": "0.0.11",
-  "repository": "ensembleblock/airtable",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ensembleblock/airtable.git"
+  },
   "homepage": "https://github.com/ensembleblock/airtable#readme",
+  "bugs": {
+    "url": "https://github.com/ensembleblock/airtable/issues"
+  },
   "license": "MIT",
   "author": {
     "name": "Eric L. Carraway",
     "url": "https://ensembleblock.com/"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -31,36 +46,38 @@
   },
   "scripts": {
     "build": "tsc",
+    "check": "npm run lint && npm run format && npm run typecheck && npm run test:coverage",
     "clean": "rm -rf dist node_modules",
     "clean:build": "rm -rf dist",
     "dev": "tsc --watch",
-    "fix": "eslint --fix --quiet . ; prettier --write --log-level=silent .",
-    "format": "prettier --check \"**/*.{cjs,js,md,ts}\"",
-    "lint": "eslint src/*.ts",
+    "fix": "eslint --fix --quiet . && prettier --write --log-level=silent .",
+    "format": "prettier --check .",
+    "lint": "eslint .",
     "prebuild": "npm run clean:build",
     "prepare": "npm run build",
-    "prepublishOnly": "npm test",
-    "pretest": "npm run build",
+    "prepublishOnly": "npm run check",
     "release": "np",
-    "test": "npm run lint && npm run typecheck && vitest run",
-    "test:dev": "npm run lint && npm run typecheck && vitest",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:dev": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p test",
+    "test:package": "scripts/test-package.sh"
   },
   "devDependencies": {
-    "@percuss.io/eslint-config-ericcarraway": "^4.1.0",
-    "@types/node": "^22.1.0",
-    "@typescript-eslint/eslint-plugin": "^7.16.1",
-    "@typescript-eslint/parser": "^7.16.1",
-    "eslint": "^8.57.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
-    "eslint-plugin-sort-destructure-keys": "^2.0.0",
-    "eslint-plugin-typescript-sort-keys": "^3.2.0",
-    "np": "^10.0.7",
-    "prettier": "^3.3.3",
-    "typescript": "~5.3",
-    "vitest": "^2.0.5",
-    "vitest-fetch-mock": "^0.3.0"
+    "@eslint/js": "^9.39.5",
+    "@percuss.io/eslint-config-ericcarraway": "^9.0.0",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.1.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^18.5.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "eslint-plugin-sort-destructure-keys": "^3.0.0",
+    "np": "^12.1.1",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
   }
 }
