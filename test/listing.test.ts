@@ -36,6 +36,21 @@ describe(`findMany pagination`, () => {
     expect(requests.every(({ url }) => url === listUrl)).toBe(true);
   });
 
+  it(`rejects a pagination cycle before requesting an offset twice`, async () => {
+    const { client, requests } = createClient(
+      ...[`first`, `second`, `first`].map((offset) =>
+        json({ offset, records: [] }),
+      ),
+    );
+
+    await expect(client.findMany({ tableIdOrName })).rejects.toMatchObject({
+      body: { offset: `first`, records: [] },
+      name: `AirtableError`,
+      status: 200,
+    });
+    expect(requests).toHaveLength(3);
+  });
+
   it(`sends the same options with every page`, async () => {
     const { client, requests } = createClient(
       json({ offset: `itr1`, records: [rec(1)] }),

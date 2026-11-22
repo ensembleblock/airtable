@@ -762,27 +762,14 @@ export class AirtableClient {
     const listRecordsUrl = this.tableUrl(tableIdOrName, `listRecords`);
     const records: ListedRecord[] = [];
 
-    let numRequestsMade = 0;
+    const seenOffsets = new Set<string>();
     let offset: string | null = null;
 
-    while (numRequestsMade === 0 || offset) {
-      if (numRequestsMade > 500) {
-        /**
-         * This safety net prevents an infinite loop of requests that might
-         * happen if `offset` is (somehow) never set back to null in the
-         * body of the `while` loop.
-         *
-         * 50,000 records per base (divided amongst all tables in that base)
-         * is the maximum number of records on all non-enterprise plans.
-         */
-        throw new Error(
-          `Airtable ${operation} should not make more than 500 paginated requests`,
-        );
-      }
-
+    do {
       const payload: Payload = { ...basePayload };
 
       if (offset) {
+        seenOffsets.add(offset);
         payload.offset = offset;
       }
 
@@ -795,8 +782,6 @@ export class AirtableClient {
         method: `POST`,
         url: listRecordsUrl,
       });
-
-      numRequestsMade += 1;
 
       if (!res.ok) {
         throw toAirtableError(operation, res);
@@ -824,7 +809,11 @@ export class AirtableClient {
 
       // `null` when there are no more records to fetch.
       ({ offset } = page);
-    }
+
+      if (offset && seenOffsets.has(offset)) {
+        throw malformedResponseError(operation, res, `a new pagination offset`);
+      }
+    } while (offset);
 
     return records;
   }
