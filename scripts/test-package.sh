@@ -58,8 +58,14 @@ expected_files="package/LICENSE
 package/README.md
 package/dist/airtable-error.d.ts
 package/dist/airtable-error.js
+package/dist/guards.d.ts
+package/dist/guards.js
 package/dist/index.d.ts
 package/dist/index.js
+package/dist/records.d.ts
+package/dist/records.js
+package/dist/responses.d.ts
+package/dist/responses.js
 package/dist/types.d.ts
 package/dist/types.js
 package/package.json"
