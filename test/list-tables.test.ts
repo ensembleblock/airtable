@@ -219,6 +219,25 @@ describe(`listTables`, () => {
 
   it.each([
     { description: `an empty object`, response: () => json({}) },
+    {
+      description: `a non-string table description`,
+      response: () =>
+        json({ tables: [{ ...schema().tables[0], description: 42 }] }),
+    },
+    {
+      description: `a non-string field description`,
+      response: () =>
+        json({
+          tables: [
+            {
+              ...schema().tables[0],
+              fields: [
+                { description: false, id: `fldX`, name: `X`, type: `number` },
+              ],
+            },
+          ],
+        }),
+    },
     { description: `a bare array`, response: () => json(schema().tables) },
     { description: `tables: null`, response: () => json({ tables: null }) },
     {

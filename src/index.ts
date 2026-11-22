@@ -1223,6 +1223,8 @@ function isAirtableRecord(value: unknown): value is AirtableRecord {
 function isAirtableField(value: unknown): value is AirtableField {
   return (
     isPlainObj(value) &&
+    (typeof value[`description`] === `undefined` ||
+      typeof value[`description`] === `string`) &&
     isPrefixedId(value[`id`], `fld`) &&
     typeof value[`name`] === `string` &&
     typeof value[`type`] === `string` &&
@@ -1239,6 +1241,8 @@ function isAirtableTable(value: unknown): value is AirtableTable {
   const { fields, views } = value;
 
   return (
+    (typeof value[`description`] === `undefined` ||
+      typeof value[`description`] === `string`) &&
     isPrefixedId(value[`id`], `tbl`) &&
     typeof value[`name`] === `string` &&
     isPrefixedId(value[`primaryFieldId`], `fld`) &&
