@@ -154,9 +154,9 @@ export type UpsertResult = keyof typeof UpsertResults;
  * @see https://github.com/ensembleblock/airtable
  */
 export class AirtableClient {
-  private baseId: string | null = null;
+  private baseId: string;
 
-  private baseUrl: string = `https://api.airtable.com/v0`;
+  private baseUrl = `https://api.airtable.com/v0`;
 
   private headers: Record<string, string> = {};
 
@@ -164,7 +164,7 @@ export class AirtableClient {
   private lastRequestAt: number | null = null;
 
   /** The Airtable API is limited to 5 requests per second per base. */
-  private minMillisBetweenRequests: number = 200;
+  private minMillisBetweenRequests = 200;
 
   /**
    * Constructs an instance of the AirtableClient.
@@ -208,33 +208,6 @@ export class AirtableClient {
 
       this.baseUrl = baseUrl;
     }
-  }
-
-  /**
-   * Call before making an Airtable API request.
-   * This method ensures that we don't make more than 5 requests per second.
-   * @see https://airtable.com/developers/web/api/rate-limits
-   */
-  private async throttleIfNeeded(): Promise<void> {
-    if (!this.lastRequestAt) {
-      // This is the first request.  No throttling is needed.
-      return;
-    }
-
-    const millisSinceLastReq = Date.now() - this.lastRequestAt;
-
-    if (millisSinceLastReq > this.minMillisBetweenRequests) {
-      // Enough time has elapsed since the last request.  No throttling is needed.
-      return;
-    }
-
-    const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
-
-    await sleep(throttleMillis);
-  }
-
-  private setLastRequestAt(): void {
-    this.lastRequestAt = Date.now();
   }
 
   /**
@@ -322,7 +295,7 @@ export class AirtableClient {
       );
     }
 
-    const [whereKey, whereValue] = Object.entries(where)[0]!;
+    const [whereKey, whereValue] = Object.entries(where)[0] ?? [];
 
     if (!whereKey || !whereValue) {
       throw new TypeError(
@@ -337,7 +310,7 @@ export class AirtableClient {
     }
 
     const opts: FindManyOpts = {
-      filterByFormula: `{${whereKey}}='${whereValue}'`,
+      filterByFormula: `{${whereKey}}='${String(whereValue)}'`,
       maxRecords: 1,
       tableIdOrName,
     };
@@ -546,8 +519,7 @@ export class AirtableClient {
     });
 
     const records: (
-      | FieldsObj
-      | (FieldsObj & { _airtableId: `rec${string}` })
+      FieldsObj | (FieldsObj & { _airtableId: `rec${string}` })
     )[] = aggregateResponses
       // Flatten the array of arrays into a single array of records.
       .flat()
@@ -601,6 +573,33 @@ export class AirtableClient {
     const data: AirtableRecord = await res.json();
 
     return { data, ok: res.ok, status: res.status, statusText: res.statusText };
+  }
+
+  private setLastRequestAt(): void {
+    this.lastRequestAt = Date.now();
+  }
+
+  /**
+   * Call before making an Airtable API request.
+   * This method ensures that we don't make more than 5 requests per second.
+   * @see https://airtable.com/developers/web/api/rate-limits
+   */
+  private async throttleIfNeeded(): Promise<void> {
+    if (!this.lastRequestAt) {
+      // This is the first request.  No throttling is needed.
+      return;
+    }
+
+    const millisSinceLastReq = Date.now() - this.lastRequestAt;
+
+    if (millisSinceLastReq > this.minMillisBetweenRequests) {
+      // Enough time has elapsed since the last request.  No throttling is needed.
+      return;
+    }
+
+    const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
+
+    await sleep(throttleMillis);
   }
 
   /**
@@ -702,7 +701,7 @@ export class AirtableClient {
       );
     }
 
-    const [whereKey, whereValue] = Object.entries(where)[0]!;
+    const [whereKey, whereValue] = Object.entries(where)[0] ?? [];
 
     if (!whereKey || !whereValue) {
       throw new TypeError(
@@ -772,7 +771,6 @@ export class AirtableClient {
     for (const [key, valueToSet] of Object.entries($set)) {
       if (existingFields[key] === valueToSet) {
         // The field is already up-to-date.
-        // eslint-disable-next-line no-continue
         continue;
       }
 
@@ -783,13 +781,12 @@ export class AirtableClient {
           valueToSet === `` ||
           valueToSet === false ||
           valueToSet === null ||
-          valueToSet === undefined ||
+          typeof valueToSet === `undefined` ||
           (Array.isArray(valueToSet) && valueToSet.length === 0);
 
         if (updateToMakeIsEmpty) {
           // The field is empty on in the existing Airtable record
           // and the new value is also empty.
-          // eslint-disable-next-line no-continue
           continue;
         }
       }
