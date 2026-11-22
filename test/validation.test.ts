@@ -16,7 +16,7 @@ import {
   makeRecord,
   recordId,
   tableIdOrName,
-} from './helpers.js';
+} from './test-helpers.js';
 
 /** Bypass the static types to exercise runtime validation. */
 const loose = (value: unknown): never => value as never;

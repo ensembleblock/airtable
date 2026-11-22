@@ -14,7 +14,7 @@ import {
   makeRecord,
   recordId,
   tableIdOrName,
-} from './helpers.js';
+} from './test-helpers.js';
 
 const expectedHeaders = {
   authorization: `Bearer pat_mock_123456789`,

@@ -13,7 +13,7 @@ import {
   recordId,
   tableIdOrName,
   text,
-} from './helpers.js';
+} from './test-helpers.js';
 
 const deleted = { deleted: true, id: recordId };
 

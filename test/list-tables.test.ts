@@ -14,7 +14,7 @@ import {
   createMockFetch,
   json,
   text,
-} from './helpers.js';
+} from './test-helpers.js';
 
 /** Modeled on the example response in Airtable's "Get base schema" docs. */
 const schema = () => ({

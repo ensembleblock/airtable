@@ -14,7 +14,7 @@ import {
   json,
   makeRecord,
   recordId,
-} from './helpers.js';
+} from './test-helpers.js';
 
 const awkwardTable = `Q1/Q2 #notes? 50%`;
 const encodedAwkwardTable = `Q1%2FQ2%20%23notes%3F%2050%25`;

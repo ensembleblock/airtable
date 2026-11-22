@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { createClient, json, makeRecord } from './helpers.js';
+import { createClient, json, makeRecord } from './test-helpers.js';
 
 const tableIdOrName = `People`;
 const listUrl = `https://api.airtable.com/v0/app_mock_123456789/People/listRecords`;

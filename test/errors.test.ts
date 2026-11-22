@@ -20,7 +20,7 @@ import {
   recordId,
   tableIdOrName,
   text,
-} from './helpers.js';
+} from './test-helpers.js';
 
 /** Await a promise that should reject with an `AirtableError`. */
 const catchAirtableError = async (

@@ -16,7 +16,7 @@ import {
   makeRecord,
   recordId,
   tableIdOrName,
-} from './helpers.js';
+} from './test-helpers.js';
 
 /** A fetch stub that records when each request started (fake-clock millis). */
 const createTimedFetch = (
