@@ -206,11 +206,18 @@ export class AirtableClient {
 
   private headers: Record<string, string> = {};
 
-  /** Timestamp of the last request (epoch millis). */
-  private lastRequestAt: number | null = null;
+  /** When this client's most recent request actually started (epoch millis). */
+  private lastRequestStartedAt = Number.NEGATIVE_INFINITY;
 
   /** The Airtable API is limited to 5 requests per second per base. */
   private minMillisBetweenRequests = 200;
+
+  /**
+   * Settles once the most recently queued request has started.
+   * Each request waits on its predecessor's *start*, never its response,
+   * so slow responses don't hold up later requests.
+   */
+  private requestStartGate: Promise<void> = Promise.resolve();
 
   /**
    * Constructs an instance of the AirtableClient.
@@ -636,8 +643,7 @@ export class AirtableClient {
     method: HttpMethod;
     url: string;
   }): Promise<RawResponse> {
-    await this.throttleIfNeeded();
-    this.setLastRequestAt();
+    await this.waitForRequestSlot();
 
     const init: RequestInit = {
       cache: `no-store`,
@@ -658,33 +664,6 @@ export class AirtableClient {
       status: res.status,
       statusText: res.statusText,
     };
-  }
-
-  private setLastRequestAt(): void {
-    this.lastRequestAt = Date.now();
-  }
-
-  /**
-   * Call before making an Airtable API request.
-   * This method ensures that we don't make more than 5 requests per second.
-   * @see https://airtable.com/developers/web/api/rate-limits
-   */
-  private async throttleIfNeeded(): Promise<void> {
-    if (!this.lastRequestAt) {
-      // This is the first request.  No throttling is needed.
-      return;
-    }
-
-    const millisSinceLastReq = Date.now() - this.lastRequestAt;
-
-    if (millisSinceLastReq > this.minMillisBetweenRequests) {
-      // Enough time has elapsed since the last request.  No throttling is needed.
-      return;
-    }
-
-    const throttleMillis = this.minMillisBetweenRequests - millisSinceLastReq;
-
-    await sleep(throttleMillis);
   }
 
   /**
@@ -898,6 +877,42 @@ export class AirtableClient {
       _airtableId: updateRecordRes.data.id,
       upsertResult: UpsertResults.RECORD_UPDATED,
     };
+  }
+
+  /**
+   * Resolves when this client may start its next request.
+   *
+   * The Airtable API allows 5 requests per second per base, so request
+   * *starts* are spaced at least `minMillisBetweenRequests` apart. Callers are
+   * queued in call order. The gap is measured from the previous request's
+   * actual start, after any sleep, so timers that fire late together (e.g.
+   * after the event loop was blocked) still can't start requests in a burst.
+   *
+   * Throttling is per client instance: separate clients, processes, or other
+   * users of the same base or token are not coordinated.
+   * @see https://airtable.com/developers/web/api/rate-limits
+   */
+  private async waitForRequestSlot(): Promise<void> {
+    const waitForSpacing = async (): Promise<void> => {
+      const waitMillis =
+        this.lastRequestStartedAt + this.minMillisBetweenRequests - Date.now();
+
+      if (waitMillis > 0) {
+        await sleep(waitMillis);
+
+        // Re-check: a timer can fire early (by a millisecond) or late.
+        await waitForSpacing();
+      }
+    };
+
+    const turn = this.requestStartGate.then(async () => {
+      await waitForSpacing();
+      this.lastRequestStartedAt = Date.now();
+    });
+
+    this.requestStartGate = turn;
+
+    await turn;
   }
 }
 
