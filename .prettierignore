@@ -1,2 +1,7 @@
 dist
 package-lock.json
+
+# Local maintainer review notes
+/PROMPT_*.md
+/RESPONSE_*.md
+/DECISIONS_*.md

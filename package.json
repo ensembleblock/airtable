@@ -50,7 +50,7 @@
     "clean": "rm -rf dist node_modules",
     "clean:build": "rm -rf dist",
     "dev": "tsc --watch",
-    "fix": "eslint --fix --quiet . ; prettier --write --log-level=silent .",
+    "fix": "eslint --fix --quiet . && prettier --write --log-level=silent .",
     "format": "prettier --check .",
     "lint": "eslint .",
     "prebuild": "npm run clean:build",
