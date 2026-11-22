@@ -176,6 +176,8 @@ jobs:
             echo '```'
             cat "$RUNNER_TEMP/stage.log"
             echo '```'
+            # Literal Markdown backticks, not command substitution.
+            # shellcheck disable=SC2016
             echo 'Approve with 2FA: `npm stage list @ensembleblock/airtable`, then `npm stage approve <stage-id>`.'
           } >> "$GITHUB_STEP_SUMMARY"
 
