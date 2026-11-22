@@ -44,7 +44,7 @@ export default defineConfig(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: [`*.js`, `tests.spec.ts`],
+          allowDefaultProject: [`*.js`],
         },
         tsconfigRootDir: import.meta.dirname,
       },
