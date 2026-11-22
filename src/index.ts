@@ -507,20 +507,6 @@ export class AirtableClient {
   }: FindFirstOpts): Promise<
     FieldsObj | (FieldsObj & { _airtableId: `rec${string}` }) | null
   > {
-    if (fields) {
-      const fieldsArrIsValid =
-        Array.isArray(fields) &&
-        fields.length > 0 &&
-        fields.every((field) => !!field && typeof field === `string`);
-
-      if (!fieldsArrIsValid) {
-        throw new TypeError(
-          `Airtable findFirst expected 'fields' to be a lengthy array of strings`,
-        );
-      }
-    }
-    // Else, `fields` wasn't provided.  We'll retrieve all fields.
-
     if (!isPlainObj(where)) {
       throw new TypeError(
         `Airtable findFirst expected 'where' to be a plain object`,
@@ -656,67 +642,16 @@ export class AirtableClient {
    */
   private async listRecords(
     operation: string,
-    {
+    opts: FindManyOpts,
+  ): Promise<ListedRecord[]> {
+    validateListOptions(operation, opts);
+    const {
       fields,
       filterByFormula,
       maxRecords,
       modifiedSinceHours,
       tableIdOrName,
-    }: FindManyOpts,
-  ): Promise<ListedRecord[]> {
-    if (fields) {
-      const fieldsArrIsValid =
-        Array.isArray(fields) &&
-        fields.length > 0 &&
-        fields.every((field) => !!field && typeof field === `string`);
-
-      if (!fieldsArrIsValid) {
-        throw new TypeError(
-          `Airtable ${operation} expected 'fields' to be a lengthy array of strings`,
-        );
-      }
-    }
-    // Else, `fields` wasn't provided.  We'll retrieve all fields.
-
-    if (filterByFormula && !isNonEmptyStr(filterByFormula)) {
-      throw new TypeError(
-        `Airtable ${operation} expected 'filterByFormula' to be a non-empty string when given`,
-      );
-    }
-    // Else, `filterByFormula` wasn't provided.
-
-    if (
-      (maxRecords && (!Number.isInteger(maxRecords) || maxRecords < 1)) ||
-      maxRecords === 0
-    ) {
-      throw new TypeError(
-        `Airtable ${operation} expected 'maxRecords' to be a positive integer`,
-      );
-    }
-    // Else, `maxRecords` wasn't provided.  We'll retrieve all records.
-
-    if (
-      (modifiedSinceHours &&
-        (!Number.isInteger(modifiedSinceHours) || modifiedSinceHours < 1)) ||
-      modifiedSinceHours === 0
-    ) {
-      throw new TypeError(
-        `Airtable ${operation} expected 'modifiedSinceHours' to be a positive integer`,
-      );
-    }
-    // Else, `modifiedSinceHours` wasn't provided or is `null`.  We'll retrieve all records.
-
-    if (filterByFormula && modifiedSinceHours) {
-      throw new TypeError(
-        `Airtable ${operation} cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
-      );
-    }
-
-    if (!isNonEmptyStr(tableIdOrName)) {
-      throw new TypeError(
-        `Airtable ${operation} expected 'tableIdOrName' to be a non-empty string`,
-      );
-    }
+    } = opts;
 
     type Payload = {
       fields?: string[];
@@ -1176,6 +1111,59 @@ function fieldNeedsUpdate(
   }
 
   return existing !== next;
+}
+
+function validateListOptions(
+  operation: string,
+  {
+    fields,
+    filterByFormula,
+    maxRecords,
+    modifiedSinceHours,
+    tableIdOrName,
+  }: FindManyOpts,
+): void {
+  if (
+    fields &&
+    !(Array.isArray(fields) && fields.length > 0 && fields.every(isNonEmptyStr))
+  ) {
+    throw new TypeError(
+      `Airtable ${operation} expected 'fields' to be a lengthy array of strings`,
+    );
+  }
+
+  if (filterByFormula && !isNonEmptyStr(filterByFormula)) {
+    throw new TypeError(
+      `Airtable ${operation} expected 'filterByFormula' to be a non-empty string when given`,
+    );
+  }
+
+  for (const [name, value] of Object.entries({
+    maxRecords,
+    modifiedSinceHours,
+  })) {
+    if (
+      typeof value !== `undefined` &&
+      value !== null &&
+      (!Number.isInteger(value) || value < 1)
+    ) {
+      throw new TypeError(
+        `Airtable ${operation} expected '${name}' to be a positive integer`,
+      );
+    }
+  }
+
+  if (filterByFormula && modifiedSinceHours) {
+    throw new TypeError(
+      `Airtable ${operation} cannot use both 'filterByFormula' and 'modifiedSinceHours'`,
+    );
+  }
+
+  if (!isNonEmptyStr(tableIdOrName)) {
+    throw new TypeError(
+      `Airtable ${operation} expected 'tableIdOrName' to be a non-empty string`,
+    );
+  }
 }
 
 function isNonEmptyStr(str: unknown): str is string {
