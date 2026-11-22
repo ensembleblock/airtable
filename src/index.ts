@@ -328,7 +328,7 @@ export class AirtableClient {
 
   private headers: Record<string, string> = {};
 
-  /** When this client's most recent request actually started (epoch millis). */
+  /** When this client's most recent request actually started (monotonic milliseconds). */
   private lastRequestStartedAt = Number.NEGATIVE_INFINITY;
 
   /** The Airtable API is limited to 5 requests per second per base. */
@@ -489,18 +489,6 @@ export class AirtableClient {
     }
 
     return { deleted: true, id: recordId };
-  }
-
-  /**
-   * Calls the caller-provided `fetch` if one was given, otherwise the global
-   * `fetch` (looked up per request, so later stubs/polyfills are honored).
-   * Called as a plain function so implementations that depend on their
-   * receiver (e.g. a browser's `window.fetch`) keep working.
-   */
-  private async fetch(url: string, init: RequestInit): Promise<Response> {
-    const fetchFn = this.fetchImpl ?? globalThis.fetch;
-
-    return fetchFn(url, init);
   }
 
   /**
@@ -871,8 +859,6 @@ export class AirtableClient {
     method: HttpMethod;
     url: string;
   }): Promise<RawResponse> {
-    await this.waitForRequestSlot();
-
     const init: RequestInit = {
       cache: `no-store`,
       headers: this.headers,
@@ -883,7 +869,7 @@ export class AirtableClient {
       init.body = JSON.stringify(body);
     }
 
-    const res: Response = await this.fetch(url, init);
+    const res = await this.startRequest(url, init);
     const text = await res.text();
 
     return {
@@ -892,6 +878,49 @@ export class AirtableClient {
       status: res.status,
       statusText: res.statusText,
     };
+  }
+
+  /**
+   * Start a request when this client has a free slot.
+   *
+   * The Airtable API allows 5 requests per second per base, so request
+   * *starts* are spaced at least `minMillisBetweenRequests` apart. Callers are
+   * queued in call order. The gap is measured from the previous request's
+   * actual start, after any sleep, so timers that fire late together (e.g.
+   * after the event loop was blocked) still can't start requests in a burst.
+   *
+   * Throttling is per client instance: separate clients, processes, or other
+   * users of the same base or token are not coordinated.
+   * @see https://airtable.com/developers/web/api/rate-limits
+   */
+  private async startRequest(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    const started = this.requestStartGate.then(async () => {
+      const nextStart =
+        this.lastRequestStartedAt + this.minMillisBetweenRequests;
+      while (performance.now() < nextStart) {
+        await sleep(Math.ceil(nextStart - performance.now()));
+      }
+
+      const fetchFn = this.fetchImpl ?? globalThis.fetch;
+      this.lastRequestStartedAt = performance.now();
+      // Wrap the promise so the next turn waits only for fetch to be invoked.
+      return { response: fetchFn(url, init) };
+    });
+
+    // Even a synchronously throwing custom fetch must release the next caller.
+    this.requestStartGate = started.then(
+      () => {
+        /* The request started. */
+      },
+      () => {
+        /* A synchronous fetch error belongs to its caller. */
+      },
+    );
+
+    return (await started).response;
   }
 
   /**
@@ -1097,42 +1126,6 @@ export class AirtableClient {
       _airtableId,
       upsertResult: UpsertResults.RECORD_UPDATED,
     };
-  }
-
-  /**
-   * Resolves when this client may start its next request.
-   *
-   * The Airtable API allows 5 requests per second per base, so request
-   * *starts* are spaced at least `minMillisBetweenRequests` apart. Callers are
-   * queued in call order. The gap is measured from the previous request's
-   * actual start, after any sleep, so timers that fire late together (e.g.
-   * after the event loop was blocked) still can't start requests in a burst.
-   *
-   * Throttling is per client instance: separate clients, processes, or other
-   * users of the same base or token are not coordinated.
-   * @see https://airtable.com/developers/web/api/rate-limits
-   */
-  private async waitForRequestSlot(): Promise<void> {
-    const waitForSpacing = async (): Promise<void> => {
-      const waitMillis =
-        this.lastRequestStartedAt + this.minMillisBetweenRequests - Date.now();
-
-      if (waitMillis > 0) {
-        await sleep(waitMillis);
-
-        // Re-check: a timer can fire early (by a millisecond) or late.
-        await waitForSpacing();
-      }
-    };
-
-    const turn = this.requestStartGate.then(async () => {
-      await waitForSpacing();
-      this.lastRequestStartedAt = Date.now();
-    });
-
-    this.requestStartGate = turn;
-
-    await turn;
   }
 }
 

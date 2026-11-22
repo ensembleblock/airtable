@@ -92,6 +92,19 @@ describe(`request throttling`, () => {
     }
   });
 
+  it(`keeps the 200 ms gap when the system clock jumps forward`, async () => {
+    const { client, startTimes } = createTimedFetch();
+    await client.getRecord({ recordId, tableIdOrName });
+    vi.setSystemTime(10_000);
+    const second = client.getRecord({ recordId, tableIdOrName });
+
+    await vi.advanceTimersByTimeAsync(199);
+    expect(startTimes).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await second;
+    expect(startTimes).toStrictEqual([0, 10_200]);
+  });
+
   it(`does not wait for slow responses before starting the next request`, async () => {
     const firstResponseControl: { release?: () => void } = {};
 
